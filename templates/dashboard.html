@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard - Classify</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f7f9fc;
+            min-height: 100vh;
+        }
+
+        nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .user-name {
+            font-size: 16px;
+        }
+
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .alert {
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 20px;
+            min-height: calc(100vh - 200px);
+        }
+
+        /* LEFT PANEL - UPLOAD & HISTORY */
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .upload-section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .upload-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 30px 20px;
+            background: #f8f9ff;
+            text-align: center;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e8ebff;
+            border-width: 3px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            margin: 15px 0;
+        }
+
+        /* Hide the default file input */
+        input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        /* Custom file button */
+        .custom-file-button {
+            display: inline-block;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .custom-file-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.5);
+        }
+
+        .custom-file-button:active {
+            transform: translateY(0);
+        }
+
+        .upload-icon {
+            font-size: 40px;
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        .upload-text {
+            color: #666;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+
+        .file-name {
+            margin-top: 10px;
+            color: #667eea;
+            font-weight: bold;
+            min-height: 20px;
+            font-size: 14px;
+        }
+
+        .mat-slide-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            margin: 15px 0;
+        }
+
+        .mat-slide-toggle input[type="checkbox"] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .mat-slide-toggle-bar {
+            position: relative;
+            width: 36px;
+            height: 14px;
+            background-color: rgba(0, 0, 0, 0.38);
+            border-radius: 8px;
+            transition: background-color 0.2s;
+        }
+
+        .mat-slide-toggle-thumb {
+            position: absolute;
+            top: -3px;
+            left: 0;
+            width: 20px;
+            height: 20px;
+            background-color: #fafafa;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+            transition: all 0.2s;
+        }
+
+        .mat-slide-toggle input:checked + .mat-slide-toggle-bar {
+            background-color: rgba(102, 126, 234, 0.54);
+        }
+
+        .mat-slide-toggle input:checked + .mat-slide-toggle-bar .mat-slide-toggle-thumb {
+            background-color: #667eea;
+            transform: translateX(16px);
+        }
+
+        .toggle-text {
+            font-size: 13px;
+            color: #999;
+            font-weight: 500;
+        }
+
+        .toggle-text.active {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 15px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+            width: 100%;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 15px;
+            color: #667eea;
+            text-align: center;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .history-section {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-height: 450px;
+            overflow-y: auto;
+        }
+
+        .history-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .history-item {
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .history-item:hover {
+            background: #f8f9ff;
+            border-color: #667eea;
+        }
+
+        .history-item.active {
+            background: #f8f9ff;
+            border-color: #667eea;
+            border-width: 2px;
+        }
+
+        .history-item-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .history-item-meta {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 500;
+            margin-right: 8px;
+        }
+
+        .badge-summary {
+            background: #e8f4fd;
+            color: #2196F3;
+        }
+
+        .badge-transcript {
+            background: #fff4e6;
+            color: #ff9800;
+        }
+
+        /* RIGHT PANEL - VERTICAL LAYOUT */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* 1. NOTES SECTION (TOP) */
+        .notes-section {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            min-height: 400px;
+            max-height: 600px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .notes-header {
+            padding: 25px 30px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .notes-title {
+            font-size: 22px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .notes-meta {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .notes-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 13px;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f0f0f0;
+            color: #333;
+            width: auto;
+        }
+
+        .btn-small:hover {
+            background: #e0e0e0;
+            transform: translateY(-1px);
+        }
+
+        .btn-small.primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-small.primary:hover {
+            background: #5568d3;
+        }
+
+        .notes-content-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+            color: #999;
+            text-align: center;
+        }
+
+        .empty-state-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+
+        .notes-content {
+            line-height: 1.8;
+            color: #333;
+            font-size: 15px;
+        }
+
+        .notes-content h1,
+        .notes-content h2,
+        .notes-content h3 {
+            margin-top: 20px;
+            margin-bottom: 12px;
+            color: #667eea;
+        }
+
+        .notes-content h1 { font-size: 24px; }
+        .notes-content h2 { font-size: 20px; }
+        .notes-content h3 { font-size: 18px; }
+
+        .notes-content p {
+            margin-bottom: 14px;
+        }
+
+        .notes-content li {
+            margin-bottom: 8px;
+            margin-left: 20px;
+        }
+
+        .notes-content strong {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        /* 2. ENHANCE SECTION (MIDDLE) */
+        .enhance-section {
+            background: white;
+            padding: 25px 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .enhance-title {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .enhance-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .enhance-btn {
+            background: white;
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 15px 10px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .enhance-btn:hover:not(:disabled) {
+            background: #667eea;
+            color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .enhance-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .enhance-btn.cached {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            position: relative;
+        }
+
+        .enhance-btn.cached:hover {
+            background: #5568d3;
+            border-color: #5568d3;
+        }
+
+        .enhance-btn.cached::after {
+            content: '';
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .cache-badge {
+            display: inline-block;
+            background: #4caf50;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            margin-left: 8px;
+            font-weight: 600;
+        }
+
+        .enhance-icon {
+            font-size: 24px;
+        }
+
+        /* 3. ENHANCED RESULT SECTION (BOTTOM) */
+        .enhanced-section {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .enhanced-section.show {
+            display: block;
+        }
+
+        .enhanced-header {
+            padding: 20px 30px;
+            border-bottom: 2px solid #f0f0f0;
+            background: #f8f9ff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .enhanced-title {
+            font-size: 18px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: auto;
+        }
+
+        .close-btn:hover {
+            color: #667eea;
+            transform: none;
+        }
+
+        .enhanced-content {
+            padding: 30px;
+            line-height: 1.8;
+            color: #333;
+        }
+
+        .enhanced-content h1,
+        .enhanced-content h2,
+        .enhanced-content h3 {
+            color: #667eea;
+            margin-top: 20px;
+            margin-bottom: 12px;
+        }
+
+        .enhanced-content p {
+            margin-bottom: 14px;
+        }
+
+        .enhanced-content li {
+            margin-bottom: 8px;
+            margin-left: 20px;
+        }
+
+        @media (max-width: 1400px) {
+            .enhance-buttons {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .enhance-buttons {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            nav {
+                padding: 15px 20px;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .container {
+                padding: 0 10px;
+            }
+
+            .enhance-buttons {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .notes-actions {
+                flex-direction: column;
+            }
+
+            .btn-small {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">🎓 Classify</div>
+        <div class="nav-right">
+            <span class="user-name">👤 {{ current_user.name }}</span>
+            <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="main-grid">
+            <!-- LEFT PANEL: Upload & History -->
+            <div class="left-panel">
+                <!-- Upload Section -->
+                <div class="upload-section">
+                    <h2>📤 Upload New Audio</h2>
+                    
+                    <form id="uploadForm" action="{{ url_for('upload_audio') }}" method="post" enctype="multipart/form-data">
+                        <div class="upload-area">
+                            <div class="upload-icon">📤</div>
+                            <div class="file-input-wrapper">
+                                <label for="audioFile" class="custom-file-button">
+                                    📁 Choose Audio File
+                                </label>
+                                <input type="file" id="audioFile" name="audio" accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac" required>
+                            </div>
+                            <div class="file-name" id="fileName">No file selected</div>
+                            <div class="upload-text">Supported: MP3, WAV, M4A, OGG, FLAC (Max 25MB)</div>
+                        </div>
+
+                        <div style="text-align: center;">
+                            <label class="mat-slide-toggle">
+                                <span class="toggle-text">📄 Raw</span>
+                                <input type="checkbox" id="summarizeToggle" name="summarize" checked>
+                                <span class="mat-slide-toggle-bar">
+                                    <span class="mat-slide-toggle-thumb"></span>
+                                </span>
+                                <span class="toggle-text active">✨ Summary</span>
+                            </label>
+                        </div>
+
+                        <button type="submit" id="submitBtn">📝 Convert to Notes</button>
+
+                        <div class="loading" id="loading">
+                            <div class="spinner"></div>
+                            <p>Processing...</p>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- History Section -->
+                <div class="history-section">
+                    <h3>📚 Recent Uploads</h3>
+                    {% if uploads %}
+                        {% for upload in uploads %}
+                        <div class="history-item" onclick="loadNotes({{ upload.id }}, '{{ upload.original_audio }}', {{ upload.is_summary | tojson }}, '{{ upload.created_at.strftime('%b %d, %Y') }}')">
+                            <div class="history-item-title">{{ upload.original_audio[:35] }}{% if upload.original_audio|length > 35 %}...{% endif %}</div>
+                            <div class="history-item-meta">
+                                <span class="badge {% if upload.is_summary %}badge-summary{% else %}badge-transcript{% endif %}">
+                                    {% if upload.is_summary %}📝 Summary{% else %}📄 Transcript{% endif %}
+                                </span>
+                                <span>{{ upload.created_at.strftime('%b %d') }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p style="color: #999; font-size: 14px; text-align: center; padding: 20px;">No uploads yet</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: Vertical Layout -->
+            <div class="right-panel">
+                <!-- 1. NOTES SECTION (TOP) -->
+                <div class="notes-section">
+                    <div id="notesEmpty" class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <h3>No Lecture Selected</h3>
+                        <p>Upload a new audio file or select from history</p>
+                    </div>
+
+                    <div id="notesViewer" style="display: none; flex-direction: column; height: 100%;">
+                        <div class="notes-header">
+                            <h2 class="notes-title" id="notesTitle">Lecture Notes</h2>
+                            <div class="notes-meta" id="notesMeta"></div>
+                            <div class="notes-actions">
+                                <button class="btn-small primary" id="downloadBtn">⬇️ Download PDF</button>
+                                <button class="btn-small" onclick="window.print()">🖨️ Print</button>
+                                <button class="btn-small" onclick="copyNotes()">📋 Copy</button>
+                            </div>
+                        </div>
+                        <div class="notes-content-wrapper">
+                            <div class="notes-content" id="notesContent"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. ENHANCE BUTTONS (MIDDLE) -->
+                <div class="enhance-section" id="enhanceSection" style="display: none;">
+                    <div class="enhance-title">✨ Enhance Your Notes</div>
+                    <div class="enhance-buttons">
+                        <button class="enhance-btn" onclick="enhance('explain')">
+                            <span class="enhance-icon">🔍</span>
+                            <span>Explain Deeper</span>
+                        </button>
+                        <button class="enhance-btn" onclick="enhance('simplify')">
+                            <span class="enhance-icon">💡</span>
+                            <span>Simplify</span>
+                        </button>
+                        <button class="enhance-btn" onclick="enhance('keypoints')">
+                            <span class="enhance-icon">🎯</span>
+                            <span>Key Points</span>
+                        </button>
+                        <button class="enhance-btn" onclick="enhance('quiz')">
+                            <span class="enhance-icon">❓</span>
+                            <span>Generate Quiz</span>
+                        </button>
+                    </div>
+
+                    <div class="loading" id="enhanceLoading">
+                        <div class="spinner"></div>
+                        <p>Enhancing your notes...</p>
+                    </div>
+                </div>
+
+                <!-- 3. ENHANCED RESULT (BOTTOM) -->
+                <div class="enhanced-section" id="enhancedSection">
+                    <div class="enhanced-header">
+                        <h3 class="enhanced-title" id="enhancedTitle"></h3>
+                        <button class="close-btn" onclick="closeEnhanced()">×</button>
+                    </div>
+                    <div class="enhanced-content" id="enhancedContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUploadId = null;
+        let enhancementCache = {}; // Store enhancement results in memory
+
+        const fileInput = document.getElementById('audioFile');
+        const fileName = document.getElementById('fileName');
+        const form = document.getElementById('uploadForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const summarizeToggle = document.getElementById('summarizeToggle');
+        const toggleTexts = document.querySelectorAll('.toggle-text');
+        const uploadArea = document.querySelector('.upload-area');
+
+        // Toggle text styling
+        summarizeToggle.addEventListener('change', function() {
+            if (this.checked) {
+                toggleTexts[0].classList.remove('active');
+                toggleTexts[1].classList.add('active');
+            } else {
+                toggleTexts[0].classList.add('active');
+                toggleTexts[1].classList.remove('active');
+            }
+        });
+
+        // Show selected file name
+        fileInput.addEventListener('change', function(e) {
+            if (this.files && this.files.length > 0) {
+                const file = this.files[0];
+                displayFileName(file);
+            } else {
+                fileName.textContent = 'No file selected';
+            }
+        });
+
+        // Helper function to display file name
+        function displayFileName(file) {
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            fileName.textContent = `✅ ${file.name} (${sizeMB} MB)`;
+            fileName.style.color = '#667eea';
+            
+            if (file.size > 25 * 1024 * 1024) {
+                alert('⚠️ File size exceeds 25 MB limit.');
+                fileInput.value = '';
+                fileName.textContent = 'No file selected';
+                fileName.style.color = '#667eea';
+            }
+        }
+
+        // Drag and drop functionality
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                
+                // Check if it's an audio file
+                const validTypes = ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/m4a', 'audio/ogg', 'audio/flac'];
+                const validExtensions = ['.mp3', '.wav', '.m4a', '.ogg', '.flac'];
+                const isValidType = validTypes.includes(file.type) || validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+                
+                if (isValidType) {
+                    // Create a new FileList and assign to input
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    fileInput.files = dataTransfer.files;
+                    
+                    displayFileName(file);
+                } else {
+                    alert('⚠️ Please upload an audio file (MP3, WAV, M4A, OGG, or FLAC)');
+                }
+            }
+        });
+
+        // Form submit with AJAX
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('Please select an audio file first.');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ Processing...';
+            loading.classList.add('active');
+
+            const formData = new FormData(form);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    loadNotes(data.upload_id, data.filename, data.is_summary, data.created_at);
+                    form.reset();
+                    fileName.textContent = 'No file selected';
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    alert('Error: ' + (data.error || 'Upload failed'));
+                }
+            } catch (error) {
+                alert('Failed to process audio: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '📝 Convert to Notes';
+                loading.classList.remove('active');
+            }
+        });
+
+        // Load notes in viewer
+        async function loadNotes(uploadId, filename, isSummary, date) {
+            currentUploadId = uploadId;
+            
+            // Clear cache for new upload
+            enhancementCache = {};
+            
+            // Show notes viewer, hide empty state
+            document.getElementById('notesEmpty').style.display = 'none';
+            document.getElementById('notesViewer').style.display = 'flex';
+            document.getElementById('enhanceSection').style.display = 'block';
+            
+            // Set title and meta
+            document.getElementById('notesTitle').textContent = filename;
+            document.getElementById('notesMeta').innerHTML = `
+                <span class="badge ${isSummary ? 'badge-summary' : 'badge-transcript'}">
+                    ${isSummary ? '📝 AI Summary' : '📄 Full Transcript'}
+                </span>
+                <span>${date}</span>
+            `;
+            
+            // Set download button
+            document.getElementById('downloadBtn').onclick = () => {
+                window.location.href = `/download/${uploadId}`;
+            };
+            
+            // Highlight active history item
+            document.querySelectorAll('.history-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            // Fetch and display notes
+            try {
+                const response = await fetch(`/api/notes/${uploadId}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayNotes(data.content);
+                } else {
+                    document.getElementById('notesContent').innerHTML = '<p style="color: #e74c3c;">Failed to load notes</p>';
+                }
+            } catch (error) {
+                document.getElementById('notesContent').innerHTML = '<p style="color: #e74c3c;">Error loading notes</p>';
+            }
+
+            // Close any open enhanced results
+            closeEnhanced();
+        }
+
+        // Display formatted notes
+        function displayNotes(content) {
+            const notesDiv = document.getElementById('notesContent');
+            
+            let formatted = content
+                .split('\n')
+                .map(line => {
+                    line = line.trim();
+                    if (!line) return '';
+                    if (line.startsWith('## ')) return `<h2>${line.substring(3)}</h2>`;
+                    if (line.startsWith('# ')) return `<h1>${line.substring(2)}</h1>`;
+                    if (line.startsWith('- ') || line.startsWith('* ')) return `<li>${line.substring(2)}</li>`;
+                    return `<p>${line}</p>`;
+                })
+                .join('\n');
+            
+            notesDiv.innerHTML = formatted;
+            notesDiv.scrollTop = 0;
+        }
+
+        // Enhance notes
+        async function enhance(type) {
+            if (!currentUploadId) {
+                alert('Please select a lecture first');
+                return;
+            }
+
+            const titles = {
+                'explain': '🔍 Deep Dive Explanation',
+                'simplify': '💡 Simplified Version (ELI5)',
+                'keypoints': '🎯 Key Takeaways',
+                'quiz': '❓ Practice Quiz'
+            };
+
+            // Create cache key
+            const cacheKey = `${currentUploadId}_${type}`;
+
+            // Check if we have cached result
+            if (enhancementCache[cacheKey]) {
+                console.log('📦 Loading from cache:', type);
+                
+                // Show cached result instantly
+                document.getElementById('enhancedTitle').innerHTML = titles[type] + ' <span class="cache-badge">⚡ Cached</span>';
+                document.getElementById('enhancedContent').innerHTML = enhancementCache[cacheKey];
+                document.getElementById('enhancedSection').classList.add('show');
+                
+                // Mark button as cached
+                updateCacheIndicators();
+                
+                // Scroll to enhanced section
+                document.getElementById('enhancedSection').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                
+                return; // Don't make API call
+            }
+
+            // Not in cache - fetch from API
+            console.log('🌐 Fetching from API:', type);
+
+            document.getElementById('enhanceLoading').classList.add('active');
+            document.getElementById('enhancedSection').classList.remove('show');
+            document.querySelectorAll('.enhance-btn').forEach(btn => btn.disabled = true);
+
+            try {
+                const response = await fetch(`/enhance/${currentUploadId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: type })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const formattedContent = formatContent(data.content);
+                    
+                    // Store in cache
+                    enhancementCache[cacheKey] = formattedContent;
+                    console.log('💾 Saved to cache:', type);
+                    
+                    // Display result
+                    document.getElementById('enhancedTitle').textContent = titles[type];
+                    document.getElementById('enhancedContent').innerHTML = formattedContent;
+                    document.getElementById('enhancedSection').classList.add('show');
+                    
+                    // Update cache indicators
+                    updateCacheIndicators();
+                    
+                    // Scroll to enhanced section
+                    document.getElementById('enhancedSection').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Failed to enhance: ' + error.message);
+            } finally {
+                document.getElementById('enhanceLoading').classList.remove('active');
+                document.querySelectorAll('.enhance-btn').forEach(btn => btn.disabled = false);
+            }
+        }
+
+        function formatContent(content) {
+            return content
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/^- /gm, '• ');
+        }
+
+        function updateCacheIndicators() {
+            const types = ['explain', 'simplify', 'keypoints', 'quiz'];
+            const buttons = document.querySelectorAll('.enhance-btn');
+            
+            buttons.forEach((btn, index) => {
+                const type = types[index];
+                const cacheKey = `${currentUploadId}_${type}`;
+                
+                if (enhancementCache[cacheKey]) {
+                    btn.classList.add('cached');
+                } else {
+                    btn.classList.remove('cached');
+                }
+            });
+        }
+
+        function closeEnhanced() {
+            document.getElementById('enhancedSection').classList.remove('show');
+        }
+
+        function copyNotes() {
+            const content = document.getElementById('notesContent').innerText;
+            navigator.clipboard.writeText(content).then(() => {
+                alert('✅ Notes copied to clipboard!');
+            }).catch(err => {
+                alert('❌ Failed to copy');
+            });
+        }
+    </script>
+</body>
+</html>

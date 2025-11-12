@@ -1,3 +1,7 @@
 flask==3.0.0
+flask-sqlalchemy==3.1.1
+flask-login==0.6.3
 openai==1.12.0
 reportlab==4.0.9
+python-dotenv==1.0.0
+werkzeug==3.0.1

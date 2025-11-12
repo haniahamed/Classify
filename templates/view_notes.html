@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ upload.original_audio }} - Classify</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f7f9fc;
+            min-height: 100vh;
+        }
+
+        nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .back-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+
+        .back-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .header-section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .header-section h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .meta-info {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-right: 10px;
+        }
+
+        .badge-summary {
+            background: #e8f4fd;
+            color: #2196F3;
+        }
+
+        .badge-transcript {
+            background: #fff4e6;
+            color: #ff9800;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 25px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .notes-section {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .notes-content {
+            line-height: 1.8;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .notes-content h1,
+        .notes-content h2,
+        .notes-content h3 {
+            margin-top: 24px;
+            margin-bottom: 12px;
+            color: #667eea;
+        }
+
+        .notes-content h1 { font-size: 28px; }
+        .notes-content h2 { font-size: 24px; }
+        .notes-content h3 { font-size: 20px; }
+
+        .notes-content p {
+            margin-bottom: 16px;
+        }
+
+        .notes-content ul,
+        .notes-content ol {
+            margin-left: 30px;
+            margin-bottom: 16px;
+        }
+
+        .notes-content li {
+            margin-bottom: 8px;
+        }
+
+        .notes-content strong {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .notes-content code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .enhance-section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .enhance-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+
+        .enhance-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .enhance-btn {
+            background: #f8f9ff;
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 15px 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-align: left;
+        }
+
+        .enhance-btn:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .enhance-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .enhance-icon {
+            font-size: 20px;
+            margin-right: 10px;
+        }
+
+        .enhanced-content {
+            display: none;
+            background: #f8f9ff;
+            padding: 25px;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+            margin-top: 20px;
+            animation: slideIn 0.3s ease;
+        }
+
+        .enhanced-content.show {
+            display: block;
+        }
+
+        .enhanced-content h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading-spinner.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 768px) {
+            nav {
+                padding: 15px 20px;
+            }
+
+            .container {
+                padding: 0 15px;
+            }
+
+            .notes-section {
+                padding: 20px;
+            }
+
+            .enhance-buttons {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">🎓 Classify</div>
+        <div class="nav-right">
+            <a href="{{ url_for('dashboard') }}" class="back-btn">← Back to Dashboard</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="header-section">
+            <h1>📝 {{ upload.original_audio }}</h1>
+            <div class="meta-info">
+                <span class="badge {% if upload.is_summary %}badge-summary{% else %}badge-transcript{% endif %}">
+                    {% if upload.is_summary %}✨ AI Summary{% else %}📄 Full Transcript{% endif %}
+                </span>
+                <span>Created: {{ upload.created_at.strftime('%B %d, %Y at %I:%M %p') }}</span>
+            </div>
+            <div class="action-buttons">
+                <a href="{{ url_for('download', upload_id=upload.id) }}" class="btn btn-primary">
+                    ⬇️ Download PDF
+                </a>
+                <button onclick="window.print()" class="btn btn-secondary">
+                    🖨️ Print
+                </button>
+                <button onclick="copyToClipboard()" class="btn btn-secondary">
+                    📋 Copy Text
+                </button>
+            </div>
+        </div>
+
+        <div class="enhance-section">
+            <h2>✨ Enhance Your Notes</h2>
+            <div class="enhance-buttons">
+                <button class="enhance-btn" onclick="enhance('explain')">
+                    <span class="enhance-icon">🔍</span>
+                    Explain Deeper
+                </button>
+                <button class="enhance-btn" onclick="enhance('simplify')">
+                    <span class="enhance-icon">💡</span>
+                    Simplify (ELI5)
+                </button>
+                <button class="enhance-btn" onclick="enhance('keypoints')">
+                    <span class="enhance-icon">🎯</span>
+                    Key Points
+                </button>
+                <button class="enhance-btn" onclick="enhance('quiz')">
+                    <span class="enhance-icon">❓</span>
+                    Generate Quiz
+                </button>
+            </div>
+
+            <div class="loading-spinner" id="loading">
+                <div class="spinner"></div>
+                <p>Enhancing your notes...</p>
+            </div>
+
+            <div class="enhanced-content" id="enhancedContent">
+                <h3 id="enhancedTitle"></h3>
+                <div id="enhancedText"></div>
+            </div>
+        </div>
+
+        <div class="notes-section">
+            <div class="notes-content" id="notesContent">
+                {{ upload.notes_content | safe }}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadId = {{ upload.id }};
+
+        async function enhance(type) {
+            const titles = {
+                'explain': '🔍 Deep Dive Explanation',
+                'simplify': '💡 Simplified Version',
+                'keypoints': '🎯 Key Takeaways',
+                'quiz': '❓ Practice Quiz'
+            };
+
+            // Show loading
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('enhancedContent').classList.remove('show');
+
+            // Disable all buttons
+            document.querySelectorAll('.enhance-btn').forEach(btn => btn.disabled = true);
+
+            try {
+                const response = await fetch(`/enhance/${uploadId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ type: type })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Show enhanced content
+                    document.getElementById('enhancedTitle').textContent = titles[type];
+                    document.getElementById('enhancedText').innerHTML = formatContent(data.content);
+                    document.getElementById('enhancedContent').classList.add('show');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Failed to enhance notes: ' + error.message);
+            } finally {
+                // Hide loading
+                document.getElementById('loading').classList.remove('show');
+                
+                // Re-enable buttons
+                document.querySelectorAll('.enhance-btn').forEach(btn => btn.disabled = false);
+            }
+        }
+
+        function formatContent(content) {
+            // Convert markdown-style formatting to HTML
+            return content
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/^- /gm, '• ');
+        }
+
+        function copyToClipboard() {
+            const content = document.getElementById('notesContent').innerText;
+            navigator.clipboard.writeText(content).then(() => {
+                alert('Notes copied to clipboard!');
+            }).catch(err => {
+                alert('Failed to copy: ' + err);
+            });
+        }
+    </script>
+</body>
+</html>
