@@ -236,6 +236,119 @@ def delete_course(course_id):
     flash(f"Course '{course_name}' deleted successfully!", "success")
     return redirect(url_for('dashboard'))
 
+@app.route("/courses/<int:course_id>/upload-lecture", methods=["GET", "POST"])
+@login_required
+def upload_lecture(course_id):
+    """Upload a new lecture to a specific course"""
+    course = Course.query.get_or_404(course_id)
+    
+    # Check ownership
+    if course.user_id != current_user.id:
+        flash("Access denied!", "error")
+        return redirect(url_for('dashboard'))
+    
+    if request.method == "POST":
+        try:
+            # Check if audio file exists
+            if "audio" not in request.files:
+                return {"error": "No audio file in request"}, 400
+
+            file = request.files["audio"]
+            if file.filename == "":
+                return {"error": "No file selected"}, 400
+
+            # Get form data
+            lecture_title = request.form.get("title", file.filename)
+            summarize = request.form.get("summarize") == "on"
+            
+            print(f"📤 Uploading lecture to course {course.name}")
+            print(f"   Title: {lecture_title}")
+            print(f"   Summarize: {summarize}")
+
+            # Save uploaded file
+            filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+            file.save(filepath)
+            file_size = os.path.getsize(filepath)
+
+            # Step 1: Transcribe audio
+            print("🎙️ Transcribing audio...")
+            with open(filepath, "rb") as audio_file:
+                transcription = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    response_format="text"
+                )
+
+            transcript_text = transcription if isinstance(transcription, str) else transcription.text
+            print(f"✅ Transcription complete: {len(transcript_text)} characters")
+
+            # Step 2: Generate summary or use raw transcript
+            if summarize:
+                print("🤖 Generating AI summary...")
+                summary_prompt = (
+                    "Summarize the following lecture into clear, structured notes. "
+                    "Use headings, bullet points, and organize the content logically:\n\n"
+                    f"{transcript_text}"
+                )
+                chat_response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": summary_prompt}]
+                )
+                summary = chat_response.choices[0].message.content
+                print("✅ Summary generated")
+            else:
+                summary = transcript_text
+                print("📄 Using raw transcript")
+
+            # Step 3: Create Lecture in database
+            lecture = Lecture(
+                course_id=course_id,
+                title=lecture_title,
+                audio_path=filepath,
+                original_filename=file.filename,
+                file_size=file_size,
+                transcript=transcript_text,
+                summary=summary,
+                source='upload'
+            )
+            db.session.add(lecture)
+            db.session.commit()
+            
+            print(f"✅ Lecture created: ID {lecture.id}")
+
+            # Step 4: Create initial progress record
+            progress = Progress(
+                user_id=current_user.id,
+                lecture_id=lecture.id,
+                viewed=False
+            )
+            db.session.add(progress)
+            db.session.commit()
+
+            # Step 5: Clean up audio file
+            try:
+                os.remove(filepath)
+                print("🗑️ Temporary audio file removed")
+            except:
+                pass
+
+            # Return JSON response for AJAX
+            return {
+                "success": True,
+                "lecture_id": lecture.id,
+                "course_id": course_id,
+                "title": lecture_title,
+                "created_at": lecture.created_at.strftime('%b %d, %Y')
+            }
+
+        except Exception as e:
+            print(f"❌ Error uploading lecture: {str(e)}")
+            return {"error": str(e)}, 500
+    
+    # GET request - show upload form
+    return render_template("upload_lecture.html", course=course)
+
+
 
 # ==================== LECTURE ROUTES (UPDATED FOR V3) ====================
 

@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Lecture - {{ course.name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .back-link {
+            display: inline-block;
+            color: white;
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-size: 16px;
+            font-weight: 600;
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .back-link:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px 15px 0 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .upload-section {
+            background: white;
+            padding: 40px;
+            border-radius: 0 0 15px 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e7ff;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px 20px;
+            background: #f8f9ff;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e8ebff;
+            border-width: 3px;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            margin: 15px 0;
+        }
+
+        input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .custom-file-button {
+            display: inline-block;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .custom-file-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.5);
+        }
+
+        .file-name {
+            margin-top: 15px;
+            color: #667eea;
+            font-weight: bold;
+            min-height: 20px;
+            font-size: 14px;
+        }
+
+        .upload-text {
+            color: #666;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+
+        .toggle-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .mat-slide-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        .mat-slide-toggle input[type="checkbox"] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .mat-slide-toggle-bar {
+            position: relative;
+            width: 36px;
+            height: 14px;
+            background-color: rgba(0, 0, 0, 0.38);
+            border-radius: 8px;
+            transition: background-color 0.2s;
+        }
+
+        .mat-slide-toggle-thumb {
+            position: absolute;
+            top: -3px;
+            left: 0;
+            width: 20px;
+            height: 20px;
+            background-color: #fafafa;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+            transition: all 0.2s;
+        }
+
+        .mat-slide-toggle input:checked + .mat-slide-toggle-bar {
+            background-color: rgba(102, 126, 234, 0.54);
+        }
+
+        .mat-slide-toggle input:checked + .mat-slide-toggle-bar .mat-slide-toggle-thumb {
+            background-color: #667eea;
+            transform: translateX(16px);
+        }
+
+        .toggle-text {
+            font-size: 14px;
+            color: #999;
+            font-weight: 500;
+        }
+
+        .toggle-text.active {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+            color: #667eea;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .flash {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            background: white;
+        }
+
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('view_course', course_id=course.id) }}" class="back-link">
+            ← Back to {{ course.name }}
+        </a>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="header">
+            <h1>📤 Upload Lecture</h1>
+            <p>Add a new lecture to {{ course.name }}</p>
+        </div>
+
+        <div class="upload-section">
+            <form id="uploadForm" method="POST" enctype="multipart/form-data">
+                <!-- Lecture Title -->
+                <div class="form-group">
+                    <label for="title">Lecture Title</label>
+                    <input 
+                        type="text" 
+                        id="title" 
+                        name="title" 
+                        placeholder="e.g., Lecture 1: Introduction to Normalization"
+                        required
+                    >
+                </div>
+
+                <!-- Audio Upload Area -->
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📤</div>
+                    <div class="file-input-wrapper">
+                        <label for="audioFile" class="custom-file-button">
+                            📁 Choose Audio File
+                        </label>
+                        <input 
+                            type="file" 
+                            id="audioFile" 
+                            name="audio" 
+                            accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac" 
+                            required
+                        >
+                    </div>
+                    <div class="file-name" id="fileName">No file selected</div>
+                    <div class="upload-text">Supported: MP3, WAV, M4A, OGG, FLAC (Max 25MB)</div>
+                </div>
+
+                <!-- Summary Toggle -->
+                <div class="toggle-container">
+                    <label class="mat-slide-toggle">
+                        <span class="toggle-text">📄 Raw Transcript</span>
+                        <input type="checkbox" id="summarizeToggle" name="summarize" checked>
+                        <span class="mat-slide-toggle-bar">
+                            <span class="mat-slide-toggle-thumb"></span>
+                        </span>
+                        <span class="toggle-text active">✨ AI Summary</span>
+                    </label>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    📝 Create Lecture
+                </button>
+
+                <!-- Loading State -->
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p><strong>Processing your lecture...</strong></p>
+                    <p style="font-size: 13px; margin-top: 10px;">
+                        Transcribing audio and generating content. This may take a minute.
+                    </p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('audioFile');
+        const fileName = document.getElementById('fileName');
+        const form = document.getElementById('uploadForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const summarizeToggle = document.getElementById('summarizeToggle');
+        const toggleTexts = document.querySelectorAll('.toggle-text');
+        const uploadArea = document.getElementById('uploadArea');
+
+        // Toggle text styling
+        summarizeToggle.addEventListener('change', function() {
+            if (this.checked) {
+                toggleTexts[0].classList.remove('active');
+                toggleTexts[1].classList.add('active');
+            } else {
+                toggleTexts[0].classList.add('active');
+                toggleTexts[1].classList.remove('active');
+            }
+        });
+
+        // Show selected file name
+        fileInput.addEventListener('change', function(e) {
+            if (this.files && this.files.length > 0) {
+                const file = this.files[0];
+                displayFileName(file);
+            } else {
+                fileName.textContent = 'No file selected';
+            }
+        });
+
+        function displayFileName(file) {
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            fileName.textContent = `✅ ${file.name} (${sizeMB} MB)`;
+            fileName.style.color = '#667eea';
+            
+            if (file.size > 25 * 1024 * 1024) {
+                alert('⚠️ File size exceeds 25 MB limit.');
+                fileInput.value = '';
+                fileName.textContent = 'No file selected';
+            }
+        }
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                const validTypes = ['audio/mpeg', 'audio/wav', 'audio/mp3', 'audio/m4a', 'audio/ogg', 'audio/flac'];
+                const validExtensions = ['.mp3', '.wav', '.m4a', '.ogg', '.flac'];
+                const isValidType = validTypes.includes(file.type) || validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+                
+                if (isValidType) {
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    fileInput.files = dataTransfer.files;
+                    displayFileName(file);
+                } else {
+                    alert('⚠️ Please upload an audio file (MP3, WAV, M4A, OGG, or FLAC)');
+                }
+            }
+        });
+
+        // Form submit with AJAX
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('Please select an audio file first.');
+                return;
+            }
+
+            const title = document.getElementById('title').value;
+            if (!title.trim()) {
+                alert('Please enter a lecture title.');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ Processing...';
+            loading.classList.add('active');
+
+            const formData = new FormData(form);
+
+            try {
+                const response = await fetch(form.action || window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // Success! Redirect to lecture view
+                    alert('✅ Lecture created successfully!');
+                    window.location.href = `/lectures/${data.lecture_id}`;
+                } else {
+                    alert('❌ Error: ' + (data.error || 'Upload failed'));
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '📝 Create Lecture';
+                    loading.classList.remove('active');
+                }
+            } catch (error) {
+                alert('❌ Failed to process lecture: ' + error.message);
+                submitBtn.disabled = false;
+                submitBtn.textContent = '📝 Create Lecture';
+                loading.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
