@@ -315,6 +315,187 @@
             border: 1px solid #f5c6cb;
         }
 
+        /* Concepts Grid */
+        .concepts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .concept-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .concept-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .concept-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+
+        .concept-header h4 {
+            color: #333;
+            font-size: 16px;
+            margin: 0;
+            flex: 1;
+        }
+
+        .difficulty-badge {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .difficulty-beginner {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .difficulty-intermediate {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .difficulty-advanced {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .concept-preview {
+            color: #666;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .concept-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #999;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            animation: slideIn 0.3s;
+        }
+
+        .modal-close {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #999;
+            cursor: pointer;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-title {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .modal-difficulty {
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        .modal-section {
+            margin-bottom: 20px;
+        }
+
+        .modal-section h4 {
+            color: #667eea;
+            font-size: 14px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .modal-definition {
+            color: #555;
+            line-height: 1.6;
+            font-size: 15px;
+        }
+
+        .relationship-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .relationship-item {
+            padding: 10px;
+            background: #f8f9ff;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .relationship-type {
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #e0e7ff;
+            color: #667eea;
+        }
+
+        .relationship-type.prerequisite { background: #fef3c7; color: #92400e; }
+        .relationship-type.builds_on { background: #dbeafe; color: #1e40af; }
+        .relationship-type.part_of { background: #f3e8ff; color: #6b21a8; }
+        .relationship-type.related { background: #e0e7ff; color: #667eea; }
+
         /* Responsive */
         @media (max-width: 768px) {
             nav {
@@ -361,7 +542,7 @@
             
             <div class="course-meta">
                 <span>📅 Created {{ course.created_at.strftime('%b %d, %Y') }}</span>
-                <span>📝 {{ course.lectures.count() }} lectures</span>
+                <span>📝 {{ course.lectures.all()|length }} lectures</span>
             </div>
 
             <div class="course-actions">
@@ -463,6 +644,111 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- Concepts Section -->
+        <div class="lectures-section" style="grid-column: 1 / -1; margin-top: 20px;">
+            <div class="section-title">
+                <span>💡 Concepts</span>
+                <span style="font-size: 14px; color: #999;">{{ all_concepts|length }} total</span>
+            </div>
+
+            {% if all_concepts %}
+                <div class="concepts-grid">
+                    {% for concept in all_concepts %}
+                    <div class="concept-card" onclick="showConceptModal({{ concept.id }})">
+                        <div class="concept-header">
+                            <h4>{{ concept.name }}</h4>
+                            <span class="difficulty-badge difficulty-{{ concept.difficulty }}">
+                                {{ concept.difficulty }}
+                            </span>
+                        </div>
+                        <p class="concept-preview">{{ concept.definition[:100] }}...</p>
+                        <div class="concept-meta">
+                            <span>📚 {{ concept.lecture.title }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">🧠</div>
+                    <h3>No concepts yet</h3>
+                    <p>Upload lectures to automatically extract concepts</p>
+                </div>
+            {% endif %}
+        </div>
     </div>
+
+    <!-- Concept Modal (for showing details) -->
+    <div id="conceptModal" class="modal" onclick="hideConceptModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <span class="modal-close" onclick="hideConceptModal(event)">&times;</span>
+            <div id="modalContent">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // Store concepts data for modal
+    const conceptsData = {{ concepts_json|tojson|safe }};
+    const relationshipsData = {{ relationships_json|tojson|safe }};
+
+    function showConceptModal(conceptId) {
+        const concept = conceptsData.find(c => c.id === conceptId);
+        if (!concept) return;
+        
+        // Get relationships for this concept
+        const conceptRels = relationshipsData.filter(r => r.concept_id === conceptId);
+        
+        let relationshipsHTML = '';
+        if (conceptRels.length > 0) {
+            relationshipsHTML = '<div class="modal-section"><h4>🔗 Relationships</h4><ul class="relationship-list">';
+            conceptRels.forEach(rel => {
+                const relatedConcept = conceptsData.find(c => c.id === rel.related_concept_id);
+                if (relatedConcept) {
+                    relationshipsHTML += `
+                        <li class="relationship-item">
+                            <span class="relationship-type ${rel.relationship_type}">${rel.relationship_type}</span>
+                            <span>${relatedConcept.name}</span>
+                        </li>
+                    `;
+                }
+            });
+            relationshipsHTML += '</ul></div>';
+        }
+        
+        const modalContent = `
+            <h2 class="modal-title">${concept.name}</h2>
+            <span class="difficulty-badge difficulty-${concept.difficulty} modal-difficulty">${concept.difficulty}</span>
+            
+            <div class="modal-section">
+                <h4>📖 Definition</h4>
+                <p class="modal-definition">${concept.definition}</p>
+            </div>
+            
+            ${relationshipsHTML}
+            
+            <div class="modal-section">
+                <h4>📚 From Lecture</h4>
+                <p style="color: #666;">${concept.lecture.title}</p>
+            </div>
+        `;
+        
+        document.getElementById('modalContent').innerHTML = modalContent;
+        document.getElementById('conceptModal').style.display = 'block';
+    }
+
+    function hideConceptModal(event) {
+        document.getElementById('conceptModal').style.display = 'none';
+    }
+
+    // Close modal on ESC key
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            hideConceptModal();
+        }
+    });
+    </script>
 </body>
 </html>

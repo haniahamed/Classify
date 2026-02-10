@@ -36,6 +36,220 @@ client = OpenAI(api_key=api_key)
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+def extract_concepts_from_lecture(lecture_id, transcript_text):
+    """Extract key concepts from lecture transcript using GPT-4"""
+    print(f"🧠 Extracting concepts from lecture {lecture_id}...")
+    
+    concept_prompt = f"""Analyze this lecture transcript and extract the key concepts.
+For each concept, provide:
+1. Name (concise, 2-5 words)
+2. Definition (1-2 sentences)
+3. Difficulty level (beginner/intermediate/advanced)
+
+Return ONLY a JSON array:
+[
+    {{
+        "name": "Concept Name",
+        "definition": "Brief definition",
+        "difficulty": "beginner"
+    }}
+]
+
+Extract 3-7 most important concepts.
+
+Transcript:
+{transcript_text}
+"""
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert at identifying key concepts. Return ONLY valid JSON."},
+                {"role": "user", "content": concept_prompt}
+            ],
+            temperature=0.3
+        )
+        
+        response_text = response.choices[0].message.content.strip()
+        
+        # Remove markdown if present
+        if response_text.startswith("```"):
+            response_text = response_text.replace("```json", "").replace("```", "").strip()
+        
+        import json
+        concepts_data = json.loads(response_text)
+        
+        saved_concepts = []
+        for concept_data in concepts_data:
+            concept = Concept(
+                lecture_id=lecture_id,
+                name=concept_data.get('name', 'Untitled'),
+                definition=concept_data.get('definition', ''),
+                difficulty=concept_data.get('difficulty', 'intermediate')
+            )
+            db.session.add(concept)
+            saved_concepts.append(concept)
+        
+        db.session.commit()
+        
+        print(f"✅ Extracted {len(saved_concepts)} concepts")
+        return saved_concepts
+    
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        return []
+
+def build_concept_relationships(course_id):
+    """
+    Analyze all concepts in a course and identify relationships between them.
+    Creates prerequisite, related, and builds_on relationships.
+    """
+    from models import ConceptRelationship
+    
+    print(f"🔗 Building concept relationships for course {course_id}...")
+    
+    # Get all concepts for this course (through lectures)
+    course = Course.query.get(course_id)
+    if not course:
+        print("❌ Course not found")
+        return []
+    
+    # Get all lectures in the course
+    lectures = course.lectures.all()
+    if len(lectures) < 2:
+        print("⏭️ Need at least 2 lectures to build relationships. Skipping.")
+        return []
+    
+    # Collect all concepts from all lectures
+    all_concepts = []
+    for lecture in lectures:
+        lecture_concepts = Concept.query.filter_by(lecture_id=lecture.id).all()
+        all_concepts.extend(lecture_concepts)
+    
+    if len(all_concepts) < 2:
+        print("⏭️ Need at least 2 concepts to build relationships. Skipping.")
+        return []
+    
+    print(f"   Found {len(all_concepts)} concepts across {len(lectures)} lectures")
+    
+    # Prepare concept data for GPT
+    concepts_text = ""
+    for i, concept in enumerate(all_concepts, 1):
+        concepts_text += f"{i}. {concept.name} (ID: {concept.id})\n"
+        concepts_text += f"   Definition: {concept.definition}\n"
+        concepts_text += f"   From Lecture: {concept.lecture.title}\n\n"
+    
+    # GPT prompt for relationship extraction
+    relationship_prompt = f"""Analyze these concepts from a course and identify relationships between them.
+
+Concepts:
+{concepts_text}
+
+For each meaningful relationship, specify:
+1. concept_id: The ID of the first concept
+2. related_concept_id: The ID of the second concept
+3. relationship_type: One of these:
+   - "prerequisite": concept_id must be learned before related_concept_id
+   - "related": concepts are connected/similar topics
+   - "builds_on": related_concept_id expands/deepens concept_id
+   - "part_of": concept_id is a component of related_concept_id
+
+Return ONLY a JSON array:
+[
+    {{
+        "concept_id": 1,
+        "related_concept_id": 3,
+        "relationship_type": "prerequisite"
+    }}
+]
+
+Rules:
+- Only create relationships where there's a clear, meaningful connection
+- Don't relate every concept to every other concept
+- Focus on the strongest 3-8 relationships
+- If no meaningful relationships exist, return an empty array []
+
+Return ONLY valid JSON, no explanations.
+"""
+    
+    try:
+        # Call GPT-4o-mini
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system", 
+                    "content": "You are an expert at identifying relationships between educational concepts. Return ONLY valid JSON."
+                },
+                {"role": "user", "content": relationship_prompt}
+            ],
+            temperature=0.3
+        )
+        
+        response_text = response.choices[0].message.content.strip()
+        
+        # Remove markdown if present
+        if response_text.startswith("```"):
+            response_text = response_text.replace("```json", "").replace("```", "").strip()
+        
+        # Parse JSON
+        import json
+        relationships_data = json.loads(response_text)
+        
+        if not isinstance(relationships_data, list):
+            print(f"⚠️ Expected list, got {type(relationships_data)}")
+            return []
+        
+        # Delete existing relationships for this course (to avoid duplicates)
+        # Get concept IDs for this course
+        concept_ids = [c.id for c in all_concepts]
+        ConceptRelationship.query.filter(
+            ConceptRelationship.concept_id.in_(concept_ids)
+        ).delete(synchronize_session=False)
+        
+        # Save relationships to database
+        saved_relationships = []
+        for rel_data in relationships_data:
+            # Validate concept IDs exist
+            concept_id = rel_data.get('concept_id')
+            related_id = rel_data.get('related_concept_id')
+            
+            if not concept_id or not related_id:
+                continue
+            
+            # Check both concepts exist and belong to this course
+            if concept_id not in concept_ids or related_id not in concept_ids:
+                print(f"⚠️ Skipping invalid relationship: {concept_id} -> {related_id}")
+                continue
+            
+            relationship = ConceptRelationship(
+                concept_id=concept_id,
+                related_concept_id=related_id,
+                relationship_type=rel_data.get('relationship_type', 'related')
+            )
+            db.session.add(relationship)
+            saved_relationships.append(relationship)
+        
+        db.session.commit()
+        
+        print(f"✅ Created {len(saved_relationships)} concept relationships:")
+        for rel in saved_relationships:
+            concept = Concept.query.get(rel.concept_id)
+            related = Concept.query.get(rel.related_concept_id)
+            print(f"   {concept.name} --[{rel.relationship_type}]--> {related.name}")
+        
+        return saved_relationships
+    
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON parsing error: {e}")
+        print(f"Response was: {response_text[:300]}")
+        return []
+    except Exception as e:
+        print(f"❌ Error building relationships: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return []
 
 # ==================== USER LOADER ====================
 
@@ -176,10 +390,8 @@ def create_course():
 @app.route("/courses/<int:course_id>")
 @login_required
 def view_course(course_id):
-    """View a specific course with all its lectures"""
     course = Course.query.get_or_404(course_id)
     
-    # Check ownership
     if course.user_id != current_user.id:
         flash("Access denied!", "error")
         return redirect(url_for('dashboard'))
@@ -189,11 +401,49 @@ def view_course(course_id):
     weak_concepts = course.get_weak_concepts(threshold=60)
     strong_concepts = course.get_strong_concepts(threshold=80)
     
+    # Get all concepts for this course
+    from models import ConceptRelationship
+    all_concepts = []
+    for lecture in course.lectures.all():
+        lecture_concepts = Concept.query.filter_by(lecture_id=lecture.id).all()
+        all_concepts.extend(lecture_concepts)
+    
+    # Get concept relationships
+    concept_ids = [c.id for c in all_concepts]
+    relationships = ConceptRelationship.query.filter(
+        ConceptRelationship.concept_id.in_(concept_ids)
+    ).all() if concept_ids else []
+    
+    # Convert to JSON-serializable format
+    concepts_json = []
+    for c in all_concepts:
+        concepts_json.append({
+            'id': c.id,
+            'name': c.name,
+            'definition': c.definition,
+            'difficulty': c.difficulty,
+            'lecture': {
+                'id': c.lecture.id,
+                'title': c.lecture.title
+            }
+        })
+    
+    relationships_json = []
+    for r in relationships:
+        relationships_json.append({
+            'concept_id': r.concept_id,
+            'related_concept_id': r.related_concept_id,
+            'relationship_type': r.relationship_type
+        })
+    
     return render_template("view_course.html", 
                           course=course,
                           progress=progress_summary,
-                          weak_concepts=weak_concepts[:5],  # Top 5 weak
-                          strong_concepts=strong_concepts[:5])  # Top 5 strong
+                          weak_concepts=weak_concepts[:5],
+                          strong_concepts=strong_concepts[:5],
+                          all_concepts=all_concepts,
+                          concepts_json=concepts_json,
+                          relationships_json=relationships_json)
 
 
 @app.route("/courses/<int:course_id>/edit", methods=["GET", "POST"])
@@ -324,6 +574,12 @@ def upload_lecture(course_id):
             )
             db.session.add(progress)
             db.session.commit()
+
+            # Step 4.5: Extract concepts from transcript
+            extract_concepts_from_lecture(lecture.id, transcript_text)
+
+            # Step 4.6: Build concept relationships
+            build_concept_relationships(course_id)
 
             # Step 5: Clean up audio file
             try:

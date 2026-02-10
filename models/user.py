@@ -33,21 +33,36 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
     
     def get_study_stats(self):
-        """Get user's overall study statistics"""
-        total_courses = self.courses.count()
-        total_lectures = sum(course.lectures.count() for course in self.courses)
-        total_concepts = sum(
-            len(lecture.concepts) 
-            for course in self.courses 
-            for lecture in course.lectures
-        )
+        """Get user's learning statistics"""
+        # Import here to avoid circular imports
+        from models.course import Course
+        from models.lecture import Lecture
+        from models.concept import Concept
+        from models.learning import QuizAttempt
         
+        # Total courses
+        total_courses = Course.query.filter_by(user_id=self.id).count()
+        
+        # Total lectures across all user's courses
+        total_lectures = 0
+        courses = Course.query.filter_by(user_id=self.id).all()
+        for course in courses:
+            total_lectures += course.lectures.count()
+        
+        # Total concepts across all lectures
+        total_concepts = 0
+        for course in courses:
+            for lecture in course.lectures.all():
+                total_concepts += lecture.concepts.count()
+        
+        # Quiz attempts
+        quiz_attempts = QuizAttempt.query.filter_by(user_id=self.id).count()
+    
         return {
             'total_courses': total_courses,
             'total_lectures': total_lectures,
             'total_concepts': total_concepts,
-            'quiz_attempts': self.quiz_attempts.count(),
-            'flashcard_reviews': self.flashcard_reviews.count()
+            'quiz_attempts': quiz_attempts
         }
     
     def __repr__(self):

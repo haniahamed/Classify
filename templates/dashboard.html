@@ -700,7 +700,7 @@
                                 {{ course.description[:100] }}{% if course.description|length > 100 %}...{% endif %}
                             </p>
                             <div class="course-stats" style="display: flex; gap: 20px; font-size: 13px; opacity: 0.8; color: white;">
-                                <span>📝 {{ course.lectures.count() }} lectures</span>
+                                <span>📝 {{ course.lectures.all()|length }} lectures</span>
                                 <span>📅 {{ course.created_at.strftime('%b %d, %Y') }}</span>
                             </div>
                         </a>

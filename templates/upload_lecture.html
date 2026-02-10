@@ -40,6 +40,161 @@
             background: rgba(255,255,255,0.3);
         }
 
+        /* Tab Navigation */
+        .tab-navigation {
+            display: flex;
+            background: white;
+            border-radius: 0;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 20px;
+            background: #f8f9fa;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 16px;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab-btn:hover {
+            background: #f0f2ff;
+            color: #667eea;
+        }
+
+        .tab-btn.active {
+            color: #667eea;
+            background: white;
+            border-bottom-color: #667eea;
+        }
+
+        /* Tab Content */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Recording Interface */
+        .recording-interface {
+            text-align: center;
+            padding: 40px 20px;
+            min-height: 300px;
+        }
+
+        .recording-status {
+            margin-bottom: 30px;
+        }
+
+        .status-icon {
+            font-size: 72px;
+            margin-bottom: 20px;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .recording-status h3 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .recording-status p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .recording-timer {
+            background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+            padding: 40px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            border: 2px solid #e0e7ff;
+        }
+
+        .timer-display {
+            font-size: 56px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 15px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .recording-indicator {
+            color: #e74c3c;
+            font-size: 18px;
+            font-weight: 600;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .recording-controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .record-btn {
+            padding: 15px 35px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .record-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .record-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .record-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .record-btn.secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .record-btn.secondary:hover:not(:disabled) {
+            background: #f8f9ff;
+        }
+
+        #audioPlayback {
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
         .header {
             background: white;
             padding: 30px;
@@ -313,65 +468,155 @@
             <p>Add a new lecture to {{ course.name }}</p>
         </div>
 
-        <div class="upload-section">
-            <form id="uploadForm" method="POST" enctype="multipart/form-data">
-                <!-- Lecture Title -->
-                <div class="form-group">
-                    <label for="title">Lecture Title</label>
-                    <input 
-                        type="text" 
-                        id="title" 
-                        name="title" 
-                        placeholder="e.g., Lecture 1: Introduction to Normalization"
-                        required
-                    >
-                </div>
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+            <button class="tab-btn active" onclick="switchTab('upload')">
+                📁 Upload File
+            </button>
+            <button class="tab-btn" onclick="switchTab('record')">
+                🎙️ Record Audio
+            </button>
+        </div>
 
-                <!-- Audio Upload Area -->
-                <div class="upload-area" id="uploadArea">
-                    <div class="upload-icon">📤</div>
-                    <div class="file-input-wrapper">
-                        <label for="audioFile" class="custom-file-button">
-                            📁 Choose Audio File
-                        </label>
+        <div class="upload-section">
+            <!-- Tab 1: Upload File -->    
+            <div id="uploadTab" class="tab-content active">
+                <form id="uploadForm" method="POST" enctype="multipart/form-data">
+                    <!-- Lecture Title -->
+                    <div class="form-group">
+                        <label for="title">Lecture Title</label>
                         <input 
-                            type="file" 
-                            id="audioFile" 
-                            name="audio" 
-                            accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac" 
+                            type="text" 
+                            id="title" 
+                            name="title" 
+                            placeholder="e.g., Lecture 1: Introduction to Normalization"
                             required
                         >
                     </div>
-                    <div class="file-name" id="fileName">No file selected</div>
-                    <div class="upload-text">Supported: MP3, WAV, M4A, OGG, FLAC (Max 25MB)</div>
-                </div>
 
-                <!-- Summary Toggle -->
-                <div class="toggle-container">
-                    <label class="mat-slide-toggle">
-                        <span class="toggle-text">📄 Raw Transcript</span>
-                        <input type="checkbox" id="summarizeToggle" name="summarize" checked>
-                        <span class="mat-slide-toggle-bar">
-                            <span class="mat-slide-toggle-thumb"></span>
-                        </span>
-                        <span class="toggle-text active">✨ AI Summary</span>
-                    </label>
-                </div>
+                    <!-- Audio Upload Area -->
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">📤</div>
+                        <div class="file-input-wrapper">
+                            <label for="audioFile" class="custom-file-button">
+                                📁 Choose Audio File
+                            </label>
+                            <input 
+                                type="file" 
+                                id="audioFile" 
+                                name="audio" 
+                                accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac" 
+                                required
+                            >
+                        </div>
+                        <div class="file-name" id="fileName">No file selected</div>
+                        <div class="upload-text">Supported: MP3, WAV, M4A, OGG, FLAC (Max 25MB)</div>
+                    </div>
 
-                <!-- Submit Button -->
-                <button type="submit" class="submit-btn" id="submitBtn">
-                    📝 Create Lecture
-                </button>
+                    <!-- Summary Toggle -->
+                    <div class="toggle-container">
+                        <label class="mat-slide-toggle">
+                            <span class="toggle-text">📄 Raw Transcript</span>
+                            <input type="checkbox" id="summarizeToggle" name="summarize" checked>
+                            <span class="mat-slide-toggle-bar">
+                                <span class="mat-slide-toggle-thumb"></span>
+                            </span>
+                            <span class="toggle-text active">✨ AI Summary</span>
+                        </label>
+                    </div>
 
-                <!-- Loading State -->
-                <div class="loading" id="loading">
-                    <div class="spinner"></div>
-                    <p><strong>Processing your lecture...</strong></p>
-                    <p style="font-size: 13px; margin-top: 10px;">
-                        Transcribing audio and generating content. This may take a minute.
-                    </p>
-                </div>
-            </form>
+                    <!-- Submit Button -->
+                    <button type="submit" class="submit-btn" id="submitBtn">
+                        📝 Create Lecture
+                    </button>
+
+                    <!-- Loading State -->
+                    <div class="loading" id="loading">
+                        <div class="spinner"></div>
+                        <p><strong>Processing your lecture...</strong></p>
+                        <p style="font-size: 13px; margin-top: 10px;">
+                            Transcribing audio and generating content. This may take a minute.
+                        </p>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tab 2: Record Audio -->
+            <div id="recordTab" class="tab-content">
+                <form id="recordForm">
+                    <!-- Lecture Title -->
+                    <div class="form-group">
+                        <label for="recordTitle">Lecture Title</label>
+                        <input 
+                            type="text" 
+                            id="recordTitle" 
+                            name="title" 
+                            placeholder="e.g., Lecture 2: Advanced SQL Queries"
+                            required
+                        >
+                    </div>
+
+                    <!-- Recording Interface -->
+                    <div class="recording-interface">
+                        <!-- Status Display -->
+                        <div class="recording-status" id="recordingStatus">
+                            <div class="status-icon">🎤</div>
+                            <h3 id="statusTitle">Ready to Record</h3>
+                            <p id="statusText">Click "Start Recording" to begin</p>
+                        </div>
+
+                        <!-- Timer (hidden initially) -->
+                        <div class="recording-timer" id="recordingTimer" style="display: none;">
+                            <div class="timer-display">
+                                ⏱️ <span id="timerDisplay">00:00</span>
+                            </div>
+                            <div class="recording-indicator">🔴 Recording...</div>
+                        </div>
+
+                        <!-- Control Buttons -->
+                        <div class="recording-controls">
+                            <button type="button" class="record-btn" id="startRecordBtn" onclick="startRecording()">
+                                🎤 Start Recording
+                            </button>
+                            <button type="button" class="record-btn" id="stopRecordBtn" onclick="stopRecording()" style="display: none;">
+                                ⏹️ Stop Recording
+                            </button>
+                            <button type="button" class="record-btn secondary" id="playRecordBtn" onclick="playRecording()" style="display: none;">
+                                ▶️ Preview Recording
+                            </button>
+                        </div>
+
+                        <!-- Audio Playback (hidden initially) -->
+                        <audio id="audioPlayback" controls style="display: none; width: 100%; margin-top: 20px;"></audio>
+                    </div>
+
+                    <!-- Summary Toggle -->
+                    <div class="toggle-container">
+                        <label class="mat-slide-toggle">
+                            <span class="toggle-text">📄 Raw Transcript</span>
+                            <input type="checkbox" id="recordSummarizeToggle" checked>
+                            <span class="mat-slide-toggle-bar">
+                                <span class="mat-slide-toggle-thumb"></span>
+                            </span>
+                            <span class="toggle-text active">✨ AI Summary</span>
+                        </label>
+                    </div>
+
+                    <!-- Submit Button (hidden initially) -->
+                    <button type="button" class="submit-btn" id="useRecordingBtn" onclick="useRecording()" style="display: none;">
+                        📝 Create Lecture from Recording
+                    </button>
+
+                    <!-- Loading State -->
+                    <div class="loading" id="recordLoading">
+                        <div class="spinner"></div>
+                        <p><strong>Processing your recording...</strong></p>
+                        <p style="font-size: 13px; margin-top: 10px;">
+                            Transcribing audio and generating content. This may take a minute.
+                        </p>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -415,6 +660,26 @@
                 alert('⚠️ File size exceeds 25 MB limit.');
                 fileInput.value = '';
                 fileName.textContent = 'No file selected';
+            }
+        }
+
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.getElementById('uploadTab').classList.remove('active');
+            document.getElementById('recordTab').classList.remove('active');
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            if (tabName === 'upload') {
+                document.getElementById('uploadTab').classList.add('active');
+                document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            } else if (tabName === 'record') {
+                document.getElementById('recordTab').classList.add('active');
+                document.querySelectorAll('.tab-btn')[1].classList.add('active');
             }
         }
 
@@ -500,6 +765,206 @@
                 loading.classList.remove('active');
             }
         });
+
+        // ============================================
+        // RECORDING FUNCTIONALITY (MediaRecorder API)
+        // ============================================
+
+        let mediaRecorder;
+        let audioChunks = [];
+        let recordedBlob = null;
+        let timerInterval;
+        let recordingStartTime;
+
+        // Tab switching function
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.getElementById('uploadTab').classList.remove('active');
+            document.getElementById('recordTab').classList.remove('active');
+            
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            if (tabName === 'upload') {
+                document.getElementById('uploadTab').classList.add('active');
+                document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            } else if (tabName === 'record') {
+                document.getElementById('recordTab').classList.add('active');
+                document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            }
+        }
+
+        // Start recording
+        async function startRecording() {
+            try {
+                // Request microphone permission
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Create MediaRecorder
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                // Handle data available
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+                
+                // Handle stop
+                mediaRecorder.onstop = () => {
+                    // Create blob from chunks
+                    recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    
+                    // Create playback URL
+                    const audioURL = URL.createObjectURL(recordedBlob);
+                    const audioPlayback = document.getElementById('audioPlayback');
+                    audioPlayback.src = audioURL;
+                    audioPlayback.style.display = 'block';
+                    
+                    // Stop timer
+                    clearInterval(timerInterval);
+                    
+                    // Update UI
+                    document.getElementById('recordingStatus').innerHTML = `
+                        <div class="status-icon">✅</div>
+                        <h3>Recording Complete!</h3>
+                        <p>Preview your recording below</p>
+                    `;
+                    document.getElementById('recordingTimer').style.display = 'none';
+                    document.getElementById('playRecordBtn').style.display = 'inline-block';
+                    document.getElementById('useRecordingBtn').style.display = 'block';
+                    
+                    // Stop all tracks
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                // Start recording
+                mediaRecorder.start();
+                recordingStartTime = Date.now();
+                
+                // Update UI
+                document.getElementById('recordingStatus').style.display = 'none';
+                document.getElementById('recordingTimer').style.display = 'block';
+                document.getElementById('startRecordBtn').style.display = 'none';
+                document.getElementById('stopRecordBtn').style.display = 'inline-block';
+                
+                // Start timer
+                updateTimer();
+                timerInterval = setInterval(updateTimer, 1000);
+                
+                console.log('🎤 Recording started');
+                
+            } catch (error) {
+                console.error('❌ Error accessing microphone:', error);
+                alert('Could not access microphone. Please allow microphone permission and try again.');
+            }
+        }
+
+        // Stop recording
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                document.getElementById('stopRecordBtn').style.display = 'none';
+                console.log('⏹️ Recording stopped');
+            }
+        }
+
+        // Update timer display
+        function updateTimer() {
+            const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            
+            const display = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            document.getElementById('timerDisplay').textContent = display;
+        }
+
+        // Play recording
+        function playRecording() {
+            const audioPlayback = document.getElementById('audioPlayback');
+            audioPlayback.play();
+        }
+
+        // Use recording and upload
+        async function useRecording() {
+            if (!recordedBlob) {
+                alert('No recording available!');
+                return;
+            }
+            
+            const title = document.getElementById('recordTitle').value;
+            if (!title.trim()) {
+                alert('Please enter a lecture title!');
+                return;
+            }
+            
+            const summarize = document.getElementById('recordSummarizeToggle').checked;
+            
+            // Show loading
+            document.getElementById('useRecordingBtn').disabled = true;
+            document.getElementById('useRecordingBtn').textContent = '⏳ Processing...';
+            document.getElementById('recordLoading').classList.add('active');
+            
+            console.log('📤 Uploading recording...');
+            
+            try {
+                // Create form data
+                const formData = new FormData();
+                
+                // Convert webm to a filename with timestamp
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const filename = `recording_${timestamp}.webm`;
+                
+                // Add recorded audio as file
+                formData.append('audio', recordedBlob, filename);
+                formData.append('title', title);
+                if (summarize) {
+                    formData.append('summarize', 'on');
+                }
+                
+                // Upload
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    alert('✅ Lecture created successfully!');
+                    window.location.href = `/lectures/${data.lecture_id}`;
+                } else {
+                    alert('❌ Error: ' + (data.error || 'Upload failed'));
+                    document.getElementById('useRecordingBtn').disabled = false;
+                    document.getElementById('useRecordingBtn').textContent = '📝 Create Lecture from Recording';
+                    document.getElementById('recordLoading').classList.remove('active');
+                }
+                
+            } catch (error) {
+                console.error('❌ Upload error:', error);
+                alert('Failed to upload recording: ' + error.message);
+                document.getElementById('useRecordingBtn').disabled = false;
+                document.getElementById('useRecordingBtn').textContent = '📝 Create Lecture from Recording';
+                document.getElementById('recordLoading').classList.remove('active');
+            }
+        }
+
+        // Toggle text for record tab
+        const recordSummarizeToggle = document.getElementById('recordSummarizeToggle');
+        if (recordSummarizeToggle) {
+            recordSummarizeToggle.addEventListener('change', function() {
+                const toggleTexts = document.querySelectorAll('#recordTab .toggle-text');
+                if (this.checked) {
+                    toggleTexts[0].classList.remove('active');
+                    toggleTexts[1].classList.add('active');
+                } else {
+                    toggleTexts[0].classList.add('active');
+                    toggleTexts[1].classList.remove('active');
+                }
+            });
+        }
     </script>
 </body>
 </html>
