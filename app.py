@@ -251,6 +251,289 @@ Return ONLY valid JSON, no explanations.
         traceback.print_exc()
         return []
 
+
+def generate_quiz_from_lecture(lecture_id):
+    """
+    Generate quiz questions from lecture concepts using GPT-4.
+    Creates 5-7 multiple choice questions linked to concepts.
+    """
+    print(f"📝 Generating quiz for lecture {lecture_id}...")
+    
+    # Get the lecture
+    lecture = Lecture.query.get(lecture_id)
+    if not lecture:
+        print("❌ Lecture not found")
+        return []
+    
+    # Get all concepts for this lecture
+    concepts = Concept.query.filter_by(lecture_id=lecture_id).all()
+    
+    if not concepts:
+        print("⚠️ No concepts found. Cannot generate quiz without concepts.")
+        return []
+    
+    print(f"   Found {len(concepts)} concepts to generate questions from")
+    
+    # Prepare concept data for GPT
+    concepts_text = ""
+    for i, concept in enumerate(concepts, 1):
+        concepts_text += f"{i}. {concept.name} (ID: {concept.id})\n"
+        concepts_text += f"   Definition: {concept.definition}\n"
+        concepts_text += f"   Difficulty: {concept.difficulty}\n\n"
+    
+    # Also include lecture content for context (OPTIMIZED: reduced from 2000 to 1000 chars)
+    lecture_context = lecture.summary if lecture.summary else lecture.transcript
+    if len(lecture_context) > 1000:
+        lecture_context = lecture_context[:1000] + "..."
+    
+    # GPT prompt for quiz generation (OPTIMIZED: shorter, more direct)
+    quiz_prompt = f"""Generate {len(concepts)} MCQ questions from these concepts.
+
+Concepts:
+{concepts_text}
+
+Context: {lecture_context}
+
+Return JSON array only:
+[{{"concept_id": 1, "question": "...", "option_a": "...", "option_b": "...", "option_c": "...", "option_d": "...", "correct_answer": "B", "explanation": "...", "difficulty": "intermediate"}}]"""
+    
+    try:
+        # Call GPT-4o-mini (OPTIMIZED: lower temperature, max_tokens limit)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Expert educator. Return ONLY valid JSON array."
+                },
+                {"role": "user", "content": quiz_prompt}
+            ],
+            temperature=0.3,  # OPTIMIZED: Lower for faster, more consistent responses
+            max_tokens=2000,  # OPTIMIZED: Limit response length
+            timeout=30  # OPTIMIZED: 30 second timeout
+        )
+        
+        response_text = response.choices[0].message.content.strip()
+        
+        # Remove markdown if present
+        if response_text.startswith("```"):
+            response_text = response_text.replace("```json", "").replace("```", "").strip()
+        
+        # Parse JSON
+        import json
+        questions_data = json.loads(response_text)
+        
+        if not isinstance(questions_data, list):
+            print(f"⚠️ Expected list, got {type(questions_data)}")
+            return []
+        
+        # Delete existing quiz questions for this lecture's concepts (to avoid duplicates)
+        concept_ids = [c.id for c in concepts]
+        Quiz.query.filter(Quiz.concept_id.in_(concept_ids)).delete(synchronize_session=False)
+        
+        # Save questions to database
+        saved_questions = []
+        for q_data in questions_data:
+            # Validate concept_id exists
+            concept_id = q_data.get('concept_id')
+            if not concept_id or concept_id not in concept_ids:
+                print(f"⚠️ Skipping question with invalid concept_id: {concept_id}")
+                continue
+            
+            quiz = Quiz(
+                concept_id=concept_id,
+                question=q_data.get('question', 'Question not provided'),
+                option_a=q_data.get('option_a', ''),
+                option_b=q_data.get('option_b', ''),
+                option_c=q_data.get('option_c', ''),
+                option_d=q_data.get('option_d', ''),
+                correct_answer=q_data.get('correct_answer', 'A').upper(),
+                explanation=q_data.get('explanation', ''),
+                difficulty=q_data.get('difficulty', 'medium')
+            )
+            db.session.add(quiz)
+            saved_questions.append(quiz)
+        
+        db.session.commit()
+        
+        print(f"✅ Generated {len(saved_questions)} quiz questions")
+        for i, q in enumerate(saved_questions, 1):
+            concept_name = next((c.name for c in concepts if c.id == q.concept_id), 'Unknown')
+            print(f"   {i}. [{q.difficulty}] {concept_name}: {q.question[:60]}...")
+        
+        return saved_questions
+    
+    except Exception as e:
+        print(f"❌ Error generating quiz: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
+def generate_course_quiz(course_id, questions_per_lecture=2):
+    """
+    Generate a comprehensive quiz for entire course.
+    Pulls questions from all lectures in the course.
+    
+    Args:
+        course_id: The course ID
+        questions_per_lecture: Number of questions per lecture (default: 2)
+    
+    Returns:
+        List of Quiz objects
+    """
+    print(f"📝 Generating course-wide quiz for course {course_id}...")
+    
+    # Get the course
+    course = Course.query.get(course_id)
+    if not course:
+        print("❌ Course not found")
+        return []
+    
+    # Get all lectures in the course
+    lectures = course.lectures.all()
+    
+    if not lectures:
+        print("⚠️ No lectures found in course")
+        return []
+    
+    print(f"   Found {len(lectures)} lectures")
+    
+    # Collect all concepts from all lectures
+    all_concepts = []
+    for lecture in lectures:
+        lecture_concepts = Concept.query.filter_by(lecture_id=lecture.id).all()
+        all_concepts.extend(lecture_concepts)
+    
+    if not all_concepts:
+        print("⚠️ No concepts found in course lectures")
+        return []
+    
+    print(f"   Found {len(all_concepts)} total concepts across all lectures")
+    
+    # Smart selection: Pick top concepts per lecture based on difficulty
+    # Priority: intermediate > advanced > beginner (for better assessment)
+    difficulty_priority = {'intermediate': 1, 'advanced': 2, 'beginner': 3}
+    
+    selected_concepts = []
+    for lecture in lectures:
+        lecture_concepts = [c for c in all_concepts if c.lecture_id == lecture.id]
+        
+        if not lecture_concepts:
+            continue
+        
+        # Sort by difficulty priority and take top N
+        sorted_concepts = sorted(
+            lecture_concepts, 
+            key=lambda c: difficulty_priority.get(c.difficulty, 99)
+        )
+        
+        selected_concepts.extend(sorted_concepts[:questions_per_lecture])
+    
+    if not selected_concepts:
+        print("⚠️ No concepts selected for quiz")
+        return []
+    
+    print(f"   Selected {len(selected_concepts)} concepts for course quiz")
+    
+    # Check if quiz already exists for these concepts
+    concept_ids = [c.id for c in selected_concepts]
+    existing_quiz = Quiz.query.filter(Quiz.concept_id.in_(concept_ids)).first()
+    
+    if existing_quiz:
+        print(f"   ✅ Course quiz already exists with {len(concept_ids)} questions")
+        # Return all existing questions
+        return Quiz.query.filter(Quiz.concept_id.in_(concept_ids)).all()
+    
+    # Generate quiz questions for selected concepts
+    # Prepare concept data
+    concepts_text = ""
+    for i, concept in enumerate(selected_concepts, 1):
+        lecture = Lecture.query.get(concept.lecture_id)
+        concepts_text += f"{i}. {concept.name} (ID: {concept.id}, Lecture: {lecture.title})\n"
+        concepts_text += f"   Definition: {concept.definition}\n"
+        concepts_text += f"   Difficulty: {concept.difficulty}\n\n"
+    
+    # GPT prompt for course quiz
+    quiz_prompt = f"""Generate {len(selected_concepts)} MCQ questions for a course assessment.
+
+Course: {course.name}
+Concepts from multiple lectures:
+{concepts_text}
+
+Return JSON array only:
+[{{"concept_id": 1, "question": "...", "option_a": "...", "option_b": "...", "option_c": "...", "option_d": "...", "correct_answer": "B", "explanation": "...", "difficulty": "intermediate"}}]"""
+    
+    try:
+        # Call GPT-4o-mini
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Expert educator. Return ONLY valid JSON array."
+                },
+                {"role": "user", "content": quiz_prompt}
+            ],
+            temperature=0.3,
+            max_tokens=3000,  # More tokens for course quiz
+            timeout=45  # Longer timeout for course quiz
+        )
+        
+        response_text = response.choices[0].message.content.strip()
+        
+        # Remove markdown if present
+        if response_text.startswith("```"):
+            response_text = response_text.replace("```json", "").replace("```", "").strip()
+        
+        # Parse JSON
+        import json
+        questions_data = json.loads(response_text)
+        
+        if not isinstance(questions_data, list):
+            print(f"⚠️ Expected list, got {type(questions_data)}")
+            return []
+        
+        # Save questions to database
+        saved_questions = []
+        for q_data in questions_data:
+            # Validate concept_id exists
+            concept_id = q_data.get('concept_id')
+            if not concept_id or concept_id not in concept_ids:
+                print(f"⚠️ Skipping question with invalid concept_id: {concept_id}")
+                continue
+            
+            quiz = Quiz(
+                concept_id=concept_id,
+                question=q_data.get('question', 'Question not provided'),
+                option_a=q_data.get('option_a', ''),
+                option_b=q_data.get('option_b', ''),
+                option_c=q_data.get('option_c', ''),
+                option_d=q_data.get('option_d', ''),
+                correct_answer=q_data.get('correct_answer', 'A').upper(),
+                explanation=q_data.get('explanation', ''),
+                difficulty=q_data.get('difficulty', 'medium')
+            )
+            db.session.add(quiz)
+            saved_questions.append(quiz)
+        
+        db.session.commit()
+        
+        print(f"✅ Generated {len(saved_questions)} course quiz questions")
+        for i, q in enumerate(saved_questions, 1):
+            concept = Concept.query.get(q.concept_id)
+            lecture = Lecture.query.get(concept.lecture_id)
+            print(f"   {i}. [{q.difficulty}] {lecture.title}: {q.question[:60]}...")
+        
+        return saved_questions
+    
+    except Exception as e:
+        print(f"❌ Error generating course quiz: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
 # ==================== USER LOADER ====================
 
 @login_manager.user_loader
@@ -580,6 +863,13 @@ def upload_lecture(course_id):
 
             # Step 4.6: Build concept relationships
             build_concept_relationships(course_id)
+            
+            # Step 4.7: Generate quiz questions from concepts
+            # OPTIMIZATION: Skip quiz generation during upload
+            # Quiz will auto-generate when user clicks "Take Quiz" button
+            # This makes upload 2-3 seconds faster!
+            # Uncomment line below to generate quiz during upload:
+            # generate_quiz_from_lecture(lecture.id)
 
             # Step 5: Clean up audio file
             try:
@@ -794,6 +1084,320 @@ def view_lecture(lecture_id):
     db.session.commit()
     
     return render_template("view_lecture.html", lecture=lecture, progress=progress)
+
+
+@app.route("/lectures/<int:lecture_id>/generate-quiz", methods=["POST"])
+@login_required
+def generate_lecture_quiz(lecture_id):
+    """Manually generate or regenerate quiz for a lecture"""
+    lecture = Lecture.query.get_or_404(lecture_id)
+    
+    # Check ownership
+    if lecture.course.user_id != current_user.id:
+        return {"error": "Access denied"}, 403
+    
+    # Generate quiz
+    questions = generate_quiz_from_lecture(lecture_id)
+    
+    if questions:
+        flash(f"✅ Successfully generated {len(questions)} quiz questions!", "success")
+        return {"success": True, "count": len(questions)}
+    else:
+        flash("⚠️ Could not generate quiz. Make sure the lecture has concepts.", "error")
+        return {"error": "Quiz generation failed"}, 500
+
+
+@app.route("/lectures/<int:lecture_id>/quiz")
+@login_required
+def take_quiz(lecture_id):
+    """Display quiz questions for a lecture"""
+    lecture = Lecture.query.get_or_404(lecture_id)
+    
+    # Check ownership
+    if lecture.course.user_id != current_user.id:
+        flash("Access denied!", "error")
+        return redirect(url_for('dashboard'))
+    
+    # Get all concepts for this lecture
+    concepts = Concept.query.filter_by(lecture_id=lecture_id).all()
+    
+    if not concepts:
+        flash("No concepts found for this lecture. Upload a lecture with content first.", "error")
+        return redirect(url_for('view_lecture', lecture_id=lecture_id))
+    
+    # Get all quiz questions for these concepts
+    concept_ids = [c.id for c in concepts]
+    questions = Quiz.query.filter(Quiz.concept_id.in_(concept_ids)).all()
+    
+    if not questions:
+        flash("No quiz questions available. Generating quiz now...", "info")
+        generate_quiz_from_lecture(lecture_id)
+        # Reload questions
+        questions = Quiz.query.filter(Quiz.concept_id.in_(concept_ids)).all()
+    
+    if not questions:
+        flash("Could not generate quiz questions. Please try again.", "error")
+        return redirect(url_for('view_lecture', lecture_id=lecture_id))
+    
+    # Shuffle questions for variety
+    import random
+    questions_list = list(questions)
+    random.shuffle(questions_list)
+    
+    return render_template("take_quiz.html", lecture=lecture, questions=questions_list)
+
+
+@app.route("/lectures/<int:lecture_id>/quiz/submit", methods=["POST"])
+@login_required
+def submit_quiz(lecture_id):
+    """Grade quiz and save attempt"""
+    from models import QuizAttempt
+    
+    lecture = Lecture.query.get_or_404(lecture_id)
+    
+    # Check ownership
+    if lecture.course.user_id != current_user.id:
+        return {"error": "Access denied"}, 403
+    
+    # Get form data
+    answers = request.form.to_dict()
+    time_taken = int(request.form.get('time_taken', 0))
+    
+    # Get all questions
+    concept_ids = [c.id for c in Concept.query.filter_by(lecture_id=lecture_id).all()]
+    questions = Quiz.query.filter(Quiz.concept_id.in_(concept_ids)).all()
+    
+    # Grade each question
+    results = []
+    correct_count = 0
+    
+    for question in questions:
+        question_key = f"question_{question.id}"
+        selected_answer = answers.get(question_key, '').upper()
+        is_correct = (selected_answer == question.correct_answer)
+        
+        if is_correct:
+            correct_count += 1
+        
+        # Save attempt
+        attempt = QuizAttempt(
+            user_id=current_user.id,
+            quiz_id=question.id,
+            selected_answer=selected_answer if selected_answer else 'X',
+            is_correct=is_correct,
+            time_taken=time_taken // len(questions) if len(questions) > 0 else 0,
+            score=100 if is_correct else 0
+        )
+        db.session.add(attempt)
+        
+        results.append({
+            'question': question,
+            'selected': selected_answer,
+            'correct': question.correct_answer,
+            'is_correct': is_correct,
+            'explanation': question.explanation
+        })
+    
+    db.session.commit()
+    
+    # Calculate overall score
+    score = (correct_count / len(questions) * 100) if len(questions) > 0 else 0
+    
+    # Update progress
+    progress = Progress.query.filter_by(
+        user_id=current_user.id,
+        lecture_id=lecture_id
+    ).first()
+    
+    if progress:
+        progress.quiz_attempts += 1
+        # Update average score
+        if progress.quiz_avg_score == 0:
+            progress.quiz_avg_score = score
+        else:
+            progress.quiz_avg_score = (progress.quiz_avg_score + score) / 2
+        progress.update_mastery()
+        db.session.commit()
+    
+    return render_template("quiz_results.html", 
+                         lecture=lecture,
+                         results=results,
+                         score=score,
+                         correct_count=correct_count,
+                         total_questions=len(questions),
+                         time_taken=time_taken)
+
+
+@app.route("/courses/<int:course_id>/quiz")
+@login_required
+def take_course_quiz(course_id):
+    """Display quiz questions for entire course (all lectures)"""
+    course = Course.query.get_or_404(course_id)
+    
+    # Check ownership
+    if course.user_id != current_user.id:
+        flash("Access denied!", "error")
+        return redirect(url_for('dashboard'))
+    
+    # Get all lectures in this course
+    lectures = course.lectures.all()
+    
+    if not lectures:
+        flash("No lectures found in this course.", "error")
+        return redirect(url_for('view_course', course_id=course_id))
+    
+    # Get all concepts from all lectures
+    all_concepts = []
+    for lecture in lectures:
+        lecture_concepts = Concept.query.filter_by(lecture_id=lecture.id).all()
+        all_concepts.extend(lecture_concepts)
+    
+    if not all_concepts:
+        flash("No concepts found in this course. Upload lectures with content first.", "error")
+        return redirect(url_for('view_course', course_id=course_id))
+    
+    # Get all quiz questions for these concepts
+    concept_ids = [c.id for c in all_concepts]
+    all_questions = Quiz.query.filter(Quiz.concept_id.in_(concept_ids)).all()
+    
+    # If no questions exist, generate for all lectures
+    if not all_questions:
+        flash("Generating quiz for all lectures... This may take a moment.", "info")
+        for lecture in lectures:
+            lecture_concepts = Concept.query.filter_by(lecture_id=lecture.id).all()
+            if lecture_concepts:
+                generate_quiz_from_lecture(lecture.id)
+        
+        # Reload questions
+        all_questions = Quiz.query.filter(Quiz.concept_id.in_(concept_ids)).all()
+    
+    if not all_questions:
+        flash("Could not generate quiz questions. Please try again.", "error")
+        return redirect(url_for('view_course', course_id=course_id))
+    
+    # Select 10-15 questions (or 2-3 per lecture, whichever is less)
+    import random
+    questions_per_lecture = max(2, min(3, len(all_questions) // len(lectures)))
+    
+    selected_questions = []
+    for lecture in lectures:
+        lecture_concept_ids = [c.id for c in Concept.query.filter_by(lecture_id=lecture.id).all()]
+        lecture_questions = [q for q in all_questions if q.concept_id in lecture_concept_ids]
+        
+        if lecture_questions:
+            # Take 2-3 questions per lecture
+            sample_size = min(questions_per_lecture, len(lecture_questions))
+            selected_questions.extend(random.sample(lecture_questions, sample_size))
+    
+    # Shuffle final question set
+    random.shuffle(selected_questions)
+    
+    return render_template("take_quiz.html", 
+                         course=course,
+                         lecture=None,  # Signal this is a course quiz
+                         questions=selected_questions,
+                         is_course_quiz=True)
+
+
+@app.route("/courses/<int:course_id>/quiz/submit", methods=["POST"])
+@login_required
+def submit_course_quiz(course_id):
+    """Grade course quiz and save attempts"""
+    from models import QuizAttempt
+    
+    course = Course.query.get_or_404(course_id)
+    
+    # Check ownership
+    if course.user_id != current_user.id:
+        return {"error": "Access denied"}, 403
+    
+    # Get form data
+    answers = request.form.to_dict()
+    time_taken = int(request.form.get('time_taken', 0))
+    
+    # Get question IDs from form
+    question_ids = [int(key.split('_')[1]) for key in answers.keys() if key.startswith('question_')]
+    questions = Quiz.query.filter(Quiz.id.in_(question_ids)).all()
+    
+    # Grade each question and track by lecture
+    results = []
+    correct_count = 0
+    lecture_stats = {}  # {lecture_id: {'correct': 0, 'total': 0}}
+    
+    for question in questions:
+        question_key = f"question_{question.id}"
+        selected_answer = answers.get(question_key, '').upper()
+        is_correct = (selected_answer == question.correct_answer)
+        
+        if is_correct:
+            correct_count += 1
+        
+        # Save attempt
+        attempt = QuizAttempt(
+            user_id=current_user.id,
+            quiz_id=question.id,
+            selected_answer=selected_answer if selected_answer else 'X',
+            is_correct=is_correct,
+            time_taken=time_taken // len(questions) if len(questions) > 0 else 0,
+            score=100 if is_correct else 0
+        )
+        db.session.add(attempt)
+        
+        # Track by lecture
+        concept = Concept.query.get(question.concept_id)
+        lecture_id = concept.lecture_id
+        
+        if lecture_id not in lecture_stats:
+            lecture_stats[lecture_id] = {'correct': 0, 'total': 0, 'lecture': concept.lecture}
+        
+        lecture_stats[lecture_id]['total'] += 1
+        if is_correct:
+            lecture_stats[lecture_id]['correct'] += 1
+        
+        results.append({
+            'question': question,
+            'selected': selected_answer,
+            'correct': question.correct_answer,
+            'is_correct': is_correct,
+            'explanation': question.explanation,
+            'lecture': concept.lecture
+        })
+    
+    db.session.commit()
+    
+    # Calculate overall score
+    score = (correct_count / len(questions) * 100) if len(questions) > 0 else 0
+    
+    # Update progress for each lecture
+    for lecture_id, stats in lecture_stats.items():
+        progress = Progress.query.filter_by(
+            user_id=current_user.id,
+            lecture_id=lecture_id
+        ).first()
+        
+        if progress:
+            progress.quiz_attempts += 1
+            lecture_score = (stats['correct'] / stats['total'] * 100)
+            
+            if progress.quiz_avg_score == 0:
+                progress.quiz_avg_score = lecture_score
+            else:
+                progress.quiz_avg_score = (progress.quiz_avg_score + lecture_score) / 2
+            
+            progress.update_mastery()
+    
+    db.session.commit()
+    
+    return render_template("quiz_results.html", 
+                         course=course,
+                         lecture=None,  # Signal this is a course quiz
+                         results=results,
+                         score=score,
+                         correct_count=correct_count,
+                         total_questions=len(questions),
+                         time_taken=time_taken,
+                         lecture_stats=lecture_stats,
+                         is_course_quiz=True)
 
 
 # ==================== LEGACY ROUTES (V2.5 COMPATIBILITY) ====================

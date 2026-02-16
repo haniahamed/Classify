@@ -287,6 +287,9 @@
             </div>
 
             <div class="lecture-actions">
+                <a href="{{ url_for('take_quiz', lecture_id=lecture.id) }}" class="btn btn-primary">
+                    📝 Take Quiz
+                </a>
                 <a href="{{ url_for('view_course', course_id=lecture.course_id) }}" class="btn btn-secondary">
                     ← Back to Course
                 </a>

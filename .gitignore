@@ -54,4 +54,4 @@ uploads/*.flac
 Thumbs.db
 
 # Logs
-*.log
+*.logtest.py
