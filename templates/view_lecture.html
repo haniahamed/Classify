@@ -287,6 +287,9 @@
             </div>
 
             <div class="lecture-actions">
+                <a href="{{ url_for('study_flashcards', lecture_id=lecture.id) }}" class="btn btn-primary">
+                    🎴 Study Flashcards
+                </a>
                 <a href="{{ url_for('take_quiz', lecture_id=lecture.id) }}" class="btn btn-primary">
                     📝 Take Quiz
                 </a>
@@ -308,9 +311,103 @@
                 {{ lecture.summary | safe }}
             </div>
         </div>
+
+        <!-- Enhancement Tools -->
+        <div class="content-section" style="margin-top: 20px;">
+            <div class="section-header">
+                <h2 class="section-title">🛠️ Enhancement Tools</h2>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                <button onclick="enhance('explain')" class="btn btn-secondary">
+                    🔍 Explain Deeper
+                </button>
+                <button onclick="enhance('simplify')" class="btn btn-secondary">
+                    💡 Simplify (ELI5)
+                </button>
+                <button onclick="enhance('keypoints')" class="btn btn-secondary">
+                    📋 Key Points
+                </button>
+            </div>
+
+            <div id="enhancementResult" style="display: none; padding: 20px; background: #f8f9ff; border-left: 4px solid #667eea; border-radius: 8px; line-height: 1.8;">
+                <!-- Enhanced content will appear here -->
+            </div>
+
+            <div id="enhancementLoading" style="display: none; text-align: center; padding: 20px; color: #666;">
+                <div style="font-size: 24px; margin-bottom: 10px;">⏳</div>
+                <div>Generating enhanced content...</div>
+            </div>
+        </div>
     </div>
 
     <script>
+        // Enhancement function
+        function enhance(type) {
+            const resultDiv = document.getElementById('enhancementResult');
+            const loadingDiv = document.getElementById('enhancementLoading');
+            
+            // Show loading
+            resultDiv.style.display = 'none';
+            loadingDiv.style.display = 'block';
+            
+            // Get lecture content
+            const lectureContent = document.getElementById('notesContent').innerText;
+            
+            fetch('/lectures/{{ lecture.id }}/enhance', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    type: type,
+                    text: lectureContent
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                loadingDiv.style.display = 'none';
+                
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                
+                // Format the content
+                let formattedContent = data.content
+                    .split('\n')
+                    .map(line => {
+                        line = line.trim();
+                        if (!line) return '<br>';
+                        
+                        // Convert markdown bullets to HTML
+                        if (line.startsWith('- ') || line.startsWith('* ')) {
+                            return `<li>${line.substring(2)}</li>`;
+                        }
+                        
+                        // Headers
+                        if (line.startsWith('### ')) return `<h3 style="margin-top: 15px; color: #667eea;">${line.substring(4)}</h3>`;
+                        if (line.startsWith('## ')) return `<h2 style="margin-top: 15px; color: #667eea;">${line.substring(3)}</h2>`;
+                        
+                        return `<p>${line}</p>`;
+                    })
+                    .join('\n');
+                
+                // Wrap consecutive <li> in <ul>
+                formattedContent = formattedContent.replace(/(<li>.*?<\/li>\n?)+/g, '<ul style="margin-left: 20px;">$&</ul>');
+                
+                resultDiv.innerHTML = formattedContent;
+                resultDiv.style.display = 'block';
+                
+                // Scroll to result
+                resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            })
+            .catch(error => {
+                loadingDiv.style.display = 'none';
+                alert('Error: ' + error);
+            });
+        }
+
         // Format the notes content
         document.addEventListener('DOMContentLoaded', function() {
             const content = document.getElementById('notesContent');

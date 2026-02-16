@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Flashcards - Classify</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f7f9fc;
+            min-height: 100vh;
+        }
+
+        nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            transition: background 0.3s;
+        }
+
+        .nav-link:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .breadcrumb {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .breadcrumb a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .study-header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .study-title {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .study-stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: #e0e7ff;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* Flashcard Container */
+        .flashcard-container {
+            perspective: 1000px;
+            margin-bottom: 30px;
+        }
+
+        .flashcard {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+            cursor: pointer;
+        }
+
+        .flashcard.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .card-front {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .card-back {
+            transform: rotateY(180deg);
+        }
+
+        .card-label {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .card-content {
+            font-size: 24px;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        .card-back .card-content {
+            color: #333;
+            font-size: 20px;
+        }
+
+        .flip-hint {
+            position: absolute;
+            bottom: 20px;
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        /* Rating Buttons */
+        .rating-section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .rating-title {
+            text-align: center;
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .rating-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .rating-btn {
+            padding: 20px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .rating-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .rating-btn.again {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .rating-btn.again:hover {
+            background: #ef5350;
+            color: white;
+        }
+
+        .rating-btn.hard {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
+        .rating-btn.hard:hover {
+            background: #ff9800;
+            color: white;
+        }
+
+        .rating-btn.good {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .rating-btn.good:hover {
+            background: #2196f3;
+            color: white;
+        }
+
+        .rating-btn.easy {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .rating-btn.easy:hover {
+            background: #4caf50;
+            color: white;
+        }
+
+        .rating-hint {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        .completion-screen {
+            background: white;
+            padding: 60px 40px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            display: none;
+        }
+
+        .completion-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+
+        .completion-title {
+            font-size: 32px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .completion-message {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            display: inline-block;
+            margin: 5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        @media (max-width: 768px) {
+            nav {
+                padding: 15px 20px;
+            }
+
+            .container {
+                padding: 0 15px;
+            }
+
+            .flashcard {
+                height: 350px;
+            }
+
+            .card-content {
+                font-size: 20px;
+            }
+
+            .rating-buttons {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo">🎓 Classify</div>
+        <div class="nav-right">
+            <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+            <span style="color: rgba(255,255,255,0.8);">{{ current_user.name }}</span>
+            <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Breadcrumb -->
+        <div class="breadcrumb">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a> / 
+            {% if is_course_study %}
+                <a href="{{ url_for('view_course', course_id=course.id) }}">{{ course.name }}</a> / 
+                Study Flashcards
+            {% elif lecture %}
+                <a href="{{ url_for('view_course', course_id=lecture.course_id) }}">{{ lecture.course.name }}</a> / 
+                <a href="{{ url_for('view_lecture', lecture_id=lecture.id) }}">{{ lecture.title }}</a> / 
+                Study Flashcards
+            {% endif %}
+        </div>
+
+        <!-- Study Header -->
+        <div class="study-header">
+            {% if is_course_study %}
+                <h1 class="study-title">🎴 Study: {{ course.name }}</h1>
+            {% elif lecture %}
+                <h1 class="study-title">🎴 Study: {{ lecture.title }}</h1>
+            {% endif %}
+            
+            <div class="study-stats">
+                <div class="stat">
+                    <div class="stat-value" id="currentCard">1</div>
+                    <div class="stat-label">Current Card</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ flashcards|length }}</div>
+                    <div class="stat-label">Total Cards</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ due_count }}</div>
+                    <div class="stat-label">Due</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ new_count }}</div>
+                    <div class="stat-label">New</div>
+                </div>
+            </div>
+
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+        </div>
+
+        <!-- Flashcard Display -->
+        <div id="flashcardDisplay">
+            <div class="flashcard-container">
+                <div class="flashcard" id="flashcard" onclick="flipCard()">
+                    <div class="card-face card-front">
+                        <div class="card-label">Question</div>
+                        <div class="card-content" id="frontContent"></div>
+                        <div class="flip-hint">Click to reveal answer</div>
+                    </div>
+                    <div class="card-face card-back">
+                        <div class="card-label">Answer</div>
+                        <div class="card-content" id="backContent"></div>
+                        <div class="flip-hint">Click to see question again</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rating Buttons -->
+            <div class="rating-section" id="ratingSection" style="display: none;">
+                <div class="rating-title">How well did you remember?</div>
+                <div class="rating-buttons">
+                    <button class="rating-btn again" onclick="rateCard(0)">
+                        <div>❌ Again</div>
+                        <div class="rating-hint">&lt;1 min</div>
+                    </button>
+                    <button class="rating-btn hard" onclick="rateCard(3)">
+                        <div>😓 Hard</div>
+                        <div class="rating-hint">&lt;10 min</div>
+                    </button>
+                    <button class="rating-btn good" onclick="rateCard(4)">
+                        <div>👍 Good</div>
+                        <div class="rating-hint">~4 days</div>
+                    </button>
+                    <button class="rating-btn easy" onclick="rateCard(5)">
+                        <div>😊 Easy</div>
+                        <div class="rating-hint">~10 days</div>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Completion Screen -->
+        <div class="completion-screen" id="completionScreen">
+            <div class="completion-icon">🎉</div>
+            <h2 class="completion-title">Study Session Complete!</h2>
+            <p class="completion-message">Great work! You've reviewed all due flashcards.</p>
+            {% if is_course_study %}
+                <a href="{{ url_for('view_course', course_id=course.id) }}" class="btn btn-primary">
+                    📖 Back to Course
+                </a>
+                <a href="{{ url_for('study_course_flashcards', course_id=course.id) }}" class="btn btn-secondary">
+                    🔄 Study Again
+                </a>
+            {% elif lecture %}
+                <a href="{{ url_for('view_lecture', lecture_id=lecture.id) }}" class="btn btn-primary">
+                    📚 Back to Lecture
+                </a>
+                <a href="{{ url_for('study_flashcards', lecture_id=lecture.id) }}" class="btn btn-secondary">
+                    🔄 Study Again
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // Flashcard data
+        const flashcards = {{ flashcards | tojson | safe }};
+        let currentIndex = 0;
+        let isFlipped = false;
+
+        // Load first card
+        function loadCard(index) {
+            if (index >= flashcards.length) {
+                showCompletion();
+                return;
+            }
+
+            const card = flashcards[index];
+            document.getElementById('frontContent').textContent = card.front;
+            document.getElementById('backContent').textContent = card.back;
+            document.getElementById('currentCard').textContent = index + 1;
+            
+            // Reset flip state
+            document.getElementById('flashcard').classList.remove('flipped');
+            document.getElementById('ratingSection').style.display = 'none';
+            isFlipped = false;
+
+            // Update progress
+            const progress = ((index) / flashcards.length) * 100;
+            document.getElementById('progressBar').style.width = progress + '%';
+        }
+
+        function flipCard() {
+            const flashcard = document.getElementById('flashcard');
+            flashcard.classList.toggle('flipped');
+            isFlipped = !isFlipped;
+
+            // Show rating buttons when flipped to back
+            if (isFlipped) {
+                document.getElementById('ratingSection').style.display = 'block';
+            }
+        }
+
+        function rateCard(quality) {
+            const card = flashcards[currentIndex];
+
+            // Send review to server
+            fetch(`/flashcards/${card.id}/review`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ quality: quality })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Review saved:', data);
+                
+                // Move to next card
+                currentIndex++;
+                loadCard(currentIndex);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to save review. Please try again.');
+            });
+        }
+
+        function showCompletion() {
+            document.getElementById('flashcardDisplay').style.display = 'none';
+            document.getElementById('completionScreen').style.display = 'block';
+        }
+
+        // Load first card on page load
+        loadCard(0);
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            if (event.code === 'Space') {
+                event.preventDefault();
+                flipCard();
+            } else if (isFlipped) {
+                if (event.key === '1') rateCard(0);
+                if (event.key === '2') rateCard(3);
+                if (event.key === '3') rateCard(4);
+                if (event.key === '4') rateCard(5);
+            }
+        });
+    </script>
+</body>
+</html>

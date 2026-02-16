@@ -546,6 +546,8 @@
             </div>
 
             <div class="course-actions">
+                <a href="{{ url_for('course_progress', course_id=course.id) }}" class="btn btn-primary">📊 View Progress</a>
+                <a href="{{ url_for('study_course_flashcards', course_id=course.id) }}" class="btn btn-primary">🎴 Study Flashcards</a>
                 <a href="{{ url_for('take_course_quiz', course_id=course.id) }}" class="btn btn-primary">📝 Take Course Quiz</a>
                 <a href="{{ url_for('upload_lecture', course_id=course.id) }}" class="btn btn-primary">📤 Upload Lecture</a>
                 <a href="{{ url_for('edit_course', course_id=course.id) }}" class="btn btn-secondary">✏️ Edit Course</a>
@@ -728,6 +730,16 @@
                 <p class="modal-definition">${concept.definition}</p>
             </div>
             
+            <div class="modal-section">
+                <button onclick="explainConceptDeep(${concept.id})" style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                    🤖 AI Deep Dive
+                </button>
+                <div id="deepDiveResult_${concept.id}" style="display: none; margin-top: 15px; padding: 15px; background: #f8f9ff; border-radius: 8px; line-height: 1.6;"></div>
+                <div id="deepDiveLoading_${concept.id}" style="display: none; margin-top: 15px; text-align: center; color: #666;">
+                    <div>⏳ Generating detailed explanation...</div>
+                </div>
+            </div>
+            
             ${relationshipsHTML}
             
             <div class="modal-section">
@@ -738,6 +750,58 @@
         
         document.getElementById('modalContent').innerHTML = modalContent;
         document.getElementById('conceptModal').style.display = 'block';
+    }
+
+    function explainConceptDeep(conceptId) {
+        const resultDiv = document.getElementById(`deepDiveResult_${conceptId}`);
+        const loadingDiv = document.getElementById(`deepDiveLoading_${conceptId}`);
+        
+        // Show loading
+        resultDiv.style.display = 'none';
+        loadingDiv.style.display = 'block';
+        
+        fetch(`/concepts/${conceptId}/explain`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingDiv.style.display = 'none';
+            
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            
+            // Format the content
+            let formattedContent = data.content
+                .split('\n')
+                .map(line => {
+                    line = line.trim();
+                    if (!line) return '<br>';
+                    
+                    if (line.startsWith('- ') || line.startsWith('* ')) {
+                        return `<li>${line.substring(2)}</li>`;
+                    }
+                    
+                    if (line.startsWith('### ')) return `<h4 style="margin-top: 10px; color: #667eea;">${line.substring(4)}</h4>`;
+                    if (line.startsWith('## ')) return `<h3 style="margin-top: 10px; color: #667eea;">${line.substring(3)}</h3>`;
+                    
+                    return `<p style="margin-bottom: 10px;">${line}</p>`;
+                })
+                .join('\n');
+            
+            formattedContent = formattedContent.replace(/(<li>.*?<\/li>\n?)+/g, '<ul style="margin-left: 20px; margin-bottom: 10px;">$&</ul>');
+            
+            resultDiv.innerHTML = formattedContent;
+            resultDiv.style.display = 'block';
+        })
+        .catch(error => {
+            loadingDiv.style.display = 'none';
+            alert('Error: ' + error);
+        });
     }
 
     function hideConceptModal(event) {

@@ -534,6 +534,318 @@ Return JSON array only:
         return []
 
 
+def generate_flashcards_from_lecture(lecture_id):
+    """
+    Generate flashcards from lecture concepts using GPT-4.
+    Creates 1-2 flashcards per concept for spaced repetition learning.
+    """
+    from models import Flashcard
+    
+    print(f"🎴 Generating flashcards for lecture {lecture_id}...")
+    
+    # Get the lecture
+    lecture = Lecture.query.get(lecture_id)
+    if not lecture:
+        print("❌ Lecture not found")
+        return []
+    
+    # Get all concepts for this lecture
+    concepts = Concept.query.filter_by(lecture_id=lecture_id).all()
+    
+    if not concepts:
+        print("⚠️ No concepts found. Cannot generate flashcards without concepts.")
+        return []
+    
+    print(f"   Found {len(concepts)} concepts to generate flashcards from")
+    
+    # Prepare concept data for GPT
+    concepts_text = ""
+    for i, concept in enumerate(concepts, 1):
+        concepts_text += f"{i}. {concept.name} (ID: {concept.id})\n"
+        concepts_text += f"   Definition: {concept.definition}\n"
+        concepts_text += f"   Difficulty: {concept.difficulty}\n\n"
+    
+    # Lecture context
+    lecture_context = lecture.summary if lecture.summary else lecture.transcript
+    if len(lecture_context) > 1000:
+        lecture_context = lecture_context[:1000] + "..."
+    
+    # GPT prompt for flashcard generation
+    flashcard_prompt = f"""Generate flashcards for spaced repetition learning from these concepts.
+
+Concepts:
+{concepts_text}
+
+Context: {lecture_context}
+
+For each concept, create 1-2 flashcards.
+
+Rules:
+- Front: Clear question (e.g., "What is...?", "Define...", "How does... work?")
+- Back: Concise answer (2-3 sentences max)
+- Make them testable and specific
+- Match difficulty to concept
+
+Return JSON only:
+[{{"concept_id": 1, "front": "What is...?", "back": "...", "difficulty": "intermediate"}}]"""
+    
+    try:
+        # Call GPT-4o-mini
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Expert educator creating flashcards. Return ONLY valid JSON array."
+                },
+                {"role": "user", "content": flashcard_prompt}
+            ],
+            temperature=0.3,
+            max_tokens=2000,
+            timeout=30
+        )
+        
+        response_text = response.choices[0].message.content.strip()
+        
+        # Remove markdown if present
+        if response_text.startswith("```"):
+            response_text = response_text.replace("```json", "").replace("```", "").strip()
+        
+        # Parse JSON
+        import json
+        flashcards_data = json.loads(response_text)
+        
+        if not isinstance(flashcards_data, list):
+            print(f"⚠️ Expected list, got {type(flashcards_data)}")
+            return []
+        
+        # Delete existing flashcards for this lecture's concepts
+        concept_ids = [c.id for c in concepts]
+        Flashcard.query.filter(Flashcard.concept_id.in_(concept_ids)).delete(synchronize_session=False)
+        
+        # Save flashcards to database
+        saved_flashcards = []
+        for f_data in flashcards_data:
+            # Validate concept_id exists
+            concept_id = f_data.get('concept_id')
+            if not concept_id or concept_id not in concept_ids:
+                print(f"⚠️ Skipping flashcard with invalid concept_id: {concept_id}")
+                continue
+            
+            flashcard = Flashcard(
+                concept_id=concept_id,
+                front=f_data.get('front', 'Question not provided'),
+                back=f_data.get('back', 'Answer not provided'),
+                difficulty=f_data.get('difficulty', 'medium')
+            )
+            db.session.add(flashcard)
+            saved_flashcards.append(flashcard)
+        
+        db.session.commit()
+        
+        print(f"✅ Generated {len(saved_flashcards)} flashcards")
+        for i, f in enumerate(saved_flashcards, 1):
+            concept_name = next((c.name for c in concepts if c.id == f.concept_id), 'Unknown')
+            print(f"   {i}. [{f.difficulty}] {concept_name}: {f.front[:50]}...")
+        
+        return saved_flashcards
+    
+    except Exception as e:
+        print(f"❌ Error generating flashcards: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
+def calculate_course_progress(course_id, user_id):
+    """
+    Calculate comprehensive progress statistics for a course.
+    Returns dict with completion, mastery, streaks, and recommendations.
+    """
+    from models import Flashcard, FlashcardReview, QuizAttempt
+    
+    course = Course.query.get(course_id)
+    if not course:
+        return None
+    
+    lectures = course.lectures.all()
+    total_lectures = len(lectures)
+    
+    if total_lectures == 0:
+        return {
+            'completion_percentage': 0,
+            'total_lectures': 0,
+            'completed_lectures': 0,
+            'total_concepts': 0,
+            'mastered_concepts': 0,
+            'avg_quiz_score': 0,
+            'total_flashcard_reviews': 0,
+            'study_streak_days': 0
+        }
+    
+    # Lecture completion
+    completed_lectures = 0
+    all_concepts = []
+    mastered_concepts = 0
+    
+    for lecture in lectures:
+        progress = Progress.query.filter_by(
+            user_id=user_id,
+            lecture_id=lecture.id
+        ).first()
+        
+        if progress and progress.viewed:
+            completed_lectures += 1
+        
+        # Get concepts
+        concepts = Concept.query.filter_by(lecture_id=lecture.id).all()
+        all_concepts.extend(concepts)
+        
+        # Count mastered concepts
+        for concept in concepts:
+            concept_progress = Progress.query.filter_by(
+                user_id=user_id,
+                concept_id=concept.id
+            ).first()
+            
+            if concept_progress and concept_progress.mastery_level >= 80:
+                mastered_concepts += 1
+    
+    completion_percentage = (completed_lectures / total_lectures * 100) if total_lectures > 0 else 0
+    
+    # Quiz statistics
+    concept_ids = [c.id for c in all_concepts]
+    if concept_ids:
+        quizzes = Quiz.query.filter(Quiz.concept_id.in_(concept_ids)).all()
+        quiz_ids = [q.id for q in quizzes]
+        
+        quiz_attempts = QuizAttempt.query.filter(
+            QuizAttempt.user_id == user_id,
+            QuizAttempt.quiz_id.in_(quiz_ids)
+        ).all()
+        
+        if quiz_attempts:
+            avg_quiz_score = sum(a.score for a in quiz_attempts) / len(quiz_attempts)
+        else:
+            avg_quiz_score = 0
+    else:
+        avg_quiz_score = 0
+    
+    # Flashcard statistics
+    if concept_ids:
+        flashcards = Flashcard.query.filter(Flashcard.concept_id.in_(concept_ids)).all()
+        flashcard_ids = [f.id for f in flashcards]
+        
+        flashcard_reviews = FlashcardReview.query.filter(
+            FlashcardReview.user_id == user_id,
+            FlashcardReview.flashcard_id.in_(flashcard_ids)
+        ).count()
+    else:
+        flashcard_reviews = 0
+    
+    # Study streak (simplified - days with any activity)
+    from datetime import datetime, timedelta
+    recent_progress = Progress.query.filter(
+        Progress.user_id == user_id,
+        Progress.last_accessed.isnot(None)
+    ).order_by(Progress.last_accessed.desc()).all()
+    
+    study_streak_days = 0
+    if recent_progress:
+        # Simple streak: check if studied in last 7 days
+        for prog in recent_progress:
+            if prog.last_accessed:
+                days_ago = (datetime.utcnow() - prog.last_accessed).days
+                if days_ago <= 7:
+                    study_streak_days = max(study_streak_days, 7 - days_ago)
+    
+    return {
+        'completion_percentage': completion_percentage,
+        'total_lectures': total_lectures,
+        'completed_lectures': completed_lectures,
+        'total_concepts': len(all_concepts),
+        'mastered_concepts': mastered_concepts,
+        'avg_quiz_score': avg_quiz_score,
+        'total_flashcard_reviews': flashcard_reviews,
+        'study_streak_days': study_streak_days
+    }
+
+
+def get_study_recommendations(course_id, user_id):
+    """
+    Generate smart study recommendations based on progress.
+    Returns list of recommended actions.
+    """
+    recommendations = []
+    
+    # Get weak concepts (mastery < 60%)
+    weak_progresses = Progress.query.filter(
+        Progress.user_id == user_id,
+        Progress.concept_id.isnot(None),
+        Progress.mastery_level < 60
+    ).order_by(Progress.mastery_level.asc()).limit(5).all()
+    
+    for prog in weak_progresses:
+        concept = Concept.query.get(prog.concept_id)
+        if concept:
+            lecture = Lecture.query.get(concept.lecture_id)
+            if lecture and lecture.course_id == course_id:
+                recommendations.append({
+                    'type': 'review_concept',
+                    'title': f'Review: {concept.name}',
+                    'description': f'Mastery: {prog.mastery_level:.0f}% - Practice flashcards',
+                    'lecture_id': lecture.id,
+                    'priority': 'high'
+                })
+    
+    # Find lectures not yet viewed
+    course = Course.query.get(course_id)
+    if course:
+        for lecture in course.lectures.all():
+            progress = Progress.query.filter_by(
+                user_id=user_id,
+                lecture_id=lecture.id
+            ).first()
+            
+            if not progress or not progress.viewed:
+                recommendations.append({
+                    'type': 'start_lecture',
+                    'title': f'Start: {lecture.title}',
+                    'description': 'Not yet viewed',
+                    'lecture_id': lecture.id,
+                    'priority': 'medium'
+                })
+    
+    # Check for due flashcards
+    from models import Flashcard, FlashcardReview
+    
+    course = Course.query.get(course_id)
+    if course:
+        all_concepts = []
+        for lecture in course.lectures.all():
+            concepts = Concept.query.filter_by(lecture_id=lecture.id).all()
+            all_concepts.extend(concepts)
+        
+        concept_ids = [c.id for c in all_concepts]
+        flashcards = Flashcard.query.filter(Flashcard.concept_id.in_(concept_ids)).all()
+        
+        due_count = 0
+        for card in flashcards:
+            if card.is_due(user_id):
+                due_count += 1
+        
+        if due_count > 0:
+            recommendations.append({
+                'type': 'review_flashcards',
+                'title': f'Review {due_count} Flashcards',
+                'description': 'Cards are due for review',
+                'course_id': course_id,
+                'priority': 'high'
+            })
+    
+    return recommendations[:5]  # Return top 5 recommendations
+
+
 # ==================== USER LOADER ====================
 
 @login_manager.user_loader
@@ -751,6 +1063,75 @@ def edit_course(course_id):
     return render_template("edit_course.html", course=course)
 
 
+@app.route("/courses/<int:course_id>/progress")
+@login_required
+def course_progress(course_id):
+    """Detailed progress dashboard for a course"""
+    course = Course.query.get_or_404(course_id)
+    
+    # Check ownership
+    if course.user_id != current_user.id:
+        flash("Access denied!", "error")
+        return redirect(url_for('dashboard'))
+    
+    # Calculate comprehensive progress
+    progress_stats = calculate_course_progress(course_id, current_user.id)
+    
+    # Get recommendations
+    recommendations = get_study_recommendations(course_id, current_user.id)
+    
+    # Get lecture-by-lecture progress
+    lecture_progress = []
+    for lecture in course.lectures.all():
+        prog = Progress.query.filter_by(
+            user_id=current_user.id,
+            lecture_id=lecture.id
+        ).first()
+        
+        lecture_progress.append({
+            'lecture': lecture,
+            'viewed': prog.viewed if prog else False,
+            'mastery': prog.mastery_level if prog else 0,
+            'quiz_score': prog.quiz_avg_score if prog else 0,
+            'flashcard_reviews': prog.flashcard_reviews if prog else 0
+        })
+    
+    # Get performance over time (last 30 days)
+    from datetime import datetime, timedelta
+    from models import QuizAttempt
+    
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    recent_quiz_attempts = QuizAttempt.query.filter(
+        QuizAttempt.user_id == current_user.id,
+        QuizAttempt.created_at >= thirty_days_ago
+    ).order_by(QuizAttempt.created_at.asc()).all()
+    
+    # Group by date
+    performance_by_date = {}
+    for attempt in recent_quiz_attempts:
+        date_key = attempt.created_at.strftime('%Y-%m-%d')
+        if date_key not in performance_by_date:
+            performance_by_date[date_key] = {'scores': [], 'count': 0}
+        performance_by_date[date_key]['scores'].append(attempt.score)
+        performance_by_date[date_key]['count'] += 1
+    
+    performance_data = []
+    for date_key in sorted(performance_by_date.keys()):
+        avg_score = sum(performance_by_date[date_key]['scores']) / len(performance_by_date[date_key]['scores'])
+        performance_data.append({
+            'date': date_key,
+            'score': round(avg_score, 1),
+            'count': performance_by_date[date_key]['count']
+        })
+    
+    return render_template("course_progress.html",
+                         course=course,
+                         stats=progress_stats,
+                         recommendations=recommendations,
+                         lecture_progress=lecture_progress,
+                         performance_data=performance_data)
+
+
 @app.route("/courses/<int:course_id>/delete", methods=["POST"])
 @login_required
 def delete_course(course_id):
@@ -870,6 +1251,13 @@ def upload_lecture(course_id):
             # This makes upload 2-3 seconds faster!
             # Uncomment line below to generate quiz during upload:
             # generate_quiz_from_lecture(lecture.id)
+            
+            # Step 4.8: Generate flashcards from concepts
+            # OPTIMIZATION: Skip flashcard generation during upload
+            # Flashcards will auto-generate when user starts study session
+            # This makes upload 2-3 seconds faster!
+            # Uncomment line below to generate flashcards during upload:
+            # generate_flashcards_from_lecture(lecture.id)
 
             # Step 5: Clean up audio file
             try:
@@ -1398,6 +1786,346 @@ def submit_course_quiz(course_id):
                          time_taken=time_taken,
                          lecture_stats=lecture_stats,
                          is_course_quiz=True)
+
+
+# ==================== FLASHCARD STUDY ROUTES ====================
+
+@app.route("/lectures/<int:lecture_id>/study")
+@login_required
+def study_flashcards(lecture_id):
+    """Start flashcard study session for a lecture"""
+    from models import Flashcard, FlashcardReview
+    
+    lecture = Lecture.query.get_or_404(lecture_id)
+    
+    # Check ownership
+    if lecture.course.user_id != current_user.id:
+        flash("Access denied!", "error")
+        return redirect(url_for('dashboard'))
+    
+    # Get all concepts for this lecture
+    concepts = Concept.query.filter_by(lecture_id=lecture_id).all()
+    
+    if not concepts:
+        flash("No concepts found for this lecture.", "error")
+        return redirect(url_for('view_lecture', lecture_id=lecture_id))
+    
+    # Get all flashcards for these concepts
+    concept_ids = [c.id for c in concepts]
+    all_flashcards = Flashcard.query.filter(Flashcard.concept_id.in_(concept_ids)).all()
+    
+    # If no flashcards exist, generate them
+    if not all_flashcards:
+        flash("Generating flashcards... This may take a moment.", "info")
+        generate_flashcards_from_lecture(lecture_id)
+        # Reload flashcards
+        all_flashcards = Flashcard.query.filter(Flashcard.concept_id.in_(concept_ids)).all()
+    
+    if not all_flashcards:
+        flash("Could not generate flashcards. Please try again.", "error")
+        return redirect(url_for('view_lecture', lecture_id=lecture_id))
+    
+    # Get due flashcards (cards that need review)
+    due_flashcards = []
+    new_flashcards = []
+    
+    for card in all_flashcards:
+        # Check if card has been reviewed by this user
+        last_review = FlashcardReview.query.filter_by(
+            user_id=current_user.id,
+            flashcard_id=card.id
+        ).order_by(FlashcardReview.reviewed_at.desc()).first()
+        
+        if not last_review:
+            # Never reviewed - it's a new card
+            new_flashcards.append(card)
+        elif card.is_due(current_user.id):
+            # Due for review
+            due_flashcards.append(card)
+    
+    # Combine: prioritize due cards, then add new cards (limit to 20 total)
+    study_cards = due_flashcards + new_flashcards
+    study_cards = study_cards[:20]
+    
+    if not study_cards:
+        flash("🎉 All caught up! No cards due for review right now.", "success")
+        return redirect(url_for('view_lecture', lecture_id=lecture_id))
+    
+    # Convert flashcards to dictionaries for JSON serialization
+    flashcards_dict = []
+    for card in study_cards:
+        flashcards_dict.append({
+            'id': card.id,
+            'front': card.front,
+            'back': card.back,
+            'difficulty': card.difficulty
+        })
+    
+    return render_template("study_flashcards.html",
+                         lecture=lecture,
+                         flashcards=flashcards_dict,
+                         due_count=len(due_flashcards),
+                         new_count=len(new_flashcards),
+                         is_course_study=False)
+
+
+@app.route("/courses/<int:course_id>/study")
+@login_required
+def study_course_flashcards(course_id):
+    """Start flashcard study session for entire course"""
+    from models import Flashcard, FlashcardReview
+    
+    course = Course.query.get_or_404(course_id)
+    
+    # Check ownership
+    if course.user_id != current_user.id:
+        flash("Access denied!", "error")
+        return redirect(url_for('dashboard'))
+    
+    # Get all lectures in this course
+    lectures = course.lectures.all()
+    
+    if not lectures:
+        flash("No lectures found in this course.", "error")
+        return redirect(url_for('view_course', course_id=course_id))
+    
+    # Get all concepts from all lectures
+    all_concepts = []
+    for lecture in lectures:
+        lecture_concepts = Concept.query.filter_by(lecture_id=lecture.id).all()
+        all_concepts.extend(lecture_concepts)
+    
+    if not all_concepts:
+        flash("No concepts found in this course.", "error")
+        return redirect(url_for('view_course', course_id=course_id))
+    
+    # Get all flashcards
+    concept_ids = [c.id for c in all_concepts]
+    all_flashcards = Flashcard.query.filter(Flashcard.concept_id.in_(concept_ids)).all()
+    
+    # If no flashcards exist, generate for all lectures
+    if not all_flashcards:
+        flash("Generating flashcards for all lectures... This may take a moment.", "info")
+        for lecture in lectures:
+            lecture_concepts = Concept.query.filter_by(lecture_id=lecture.id).all()
+            if lecture_concepts:
+                generate_flashcards_from_lecture(lecture.id)
+        
+        # Reload flashcards
+        all_flashcards = Flashcard.query.filter(Flashcard.concept_id.in_(concept_ids)).all()
+    
+    if not all_flashcards:
+        flash("Could not generate flashcards. Please try again.", "error")
+        return redirect(url_for('view_course', course_id=course_id))
+    
+    # Get due flashcards
+    due_flashcards = []
+    new_flashcards = []
+    
+    for card in all_flashcards:
+        last_review = FlashcardReview.query.filter_by(
+            user_id=current_user.id,
+            flashcard_id=card.id
+        ).order_by(FlashcardReview.reviewed_at.desc()).first()
+        
+        if not last_review:
+            new_flashcards.append(card)
+        elif card.is_due(current_user.id):
+            due_flashcards.append(card)
+    
+    # Combine and limit to 20
+    study_cards = due_flashcards + new_flashcards
+    study_cards = study_cards[:20]
+    
+    if not study_cards:
+        flash("🎉 All caught up! No cards due for review right now.", "success")
+        return redirect(url_for('view_course', course_id=course_id))
+    
+    # Convert flashcards to dictionaries for JSON serialization
+    flashcards_dict = []
+    for card in study_cards:
+        flashcards_dict.append({
+            'id': card.id,
+            'front': card.front,
+            'back': card.back,
+            'difficulty': card.difficulty
+        })
+    
+    return render_template("study_flashcards.html",
+                         course=course,
+                         lecture=None,
+                         flashcards=flashcards_dict,
+                         due_count=len(due_flashcards),
+                         new_count=len(new_flashcards),
+                         is_course_study=True)
+
+
+@app.route("/flashcards/<int:flashcard_id>/review", methods=["POST"])
+@login_required
+def review_flashcard(flashcard_id):
+    """Submit flashcard review with quality rating"""
+    from models import Flashcard, FlashcardReview
+    
+    flashcard = Flashcard.query.get_or_404(flashcard_id)
+    
+    # Check ownership (through concept -> lecture -> course)
+    concept = Concept.query.get(flashcard.concept_id)
+    lecture = Lecture.query.get(concept.lecture_id)
+    
+    if lecture.course.user_id != current_user.id:
+        return {"error": "Access denied"}, 403
+    
+    # Get quality rating (0-5)
+    quality = int(request.json.get('quality', 3))
+    
+    if quality < 0 or quality > 5:
+        return {"error": "Quality must be between 0 and 5"}, 400
+    
+    # Get last review for this user (if exists)
+    last_review = FlashcardReview.query.filter_by(
+        user_id=current_user.id,
+        flashcard_id=flashcard_id
+    ).order_by(FlashcardReview.reviewed_at.desc()).first()
+    
+    # Create new review
+    if last_review:
+        # Copy data from last review for SM-2 algorithm
+        review = FlashcardReview(
+            user_id=current_user.id,
+            flashcard_id=flashcard_id,
+            quality=quality,
+            ease_factor=last_review.ease_factor,
+            interval=last_review.interval,
+            repetitions=last_review.repetitions,
+            next_review_date=datetime.utcnow()  # Will be calculated
+        )
+    else:
+        # First review - use defaults
+        review = FlashcardReview(
+            user_id=current_user.id,
+            flashcard_id=flashcard_id,
+            quality=quality,
+            ease_factor=2.5,
+            interval=1,
+            repetitions=0,
+            next_review_date=datetime.utcnow()
+        )
+    
+    # Calculate next review date using SM-2 algorithm
+    review.calculate_next_review()
+    
+    db.session.add(review)
+    
+    # Update progress
+    progress = Progress.query.filter_by(
+        user_id=current_user.id,
+        lecture_id=lecture.id
+    ).first()
+    
+    if progress:
+        progress.flashcard_reviews += 1
+        progress.update_mastery()
+    
+    db.session.commit()
+    
+    return {
+        "success": True,
+        "next_review_date": review.next_review_date.strftime('%Y-%m-%d'),
+        "interval_days": review.interval
+    }
+
+
+# ==================== ENHANCEMENT ROUTES ====================
+
+@app.route("/lectures/<int:lecture_id>/enhance", methods=["POST"])
+@login_required
+def enhance_lecture(lecture_id):
+    """Enhance lecture content with AI (Explain Deeper, Simplify, Key Points)"""
+    lecture = Lecture.query.get_or_404(lecture_id)
+    
+    # Check ownership
+    if lecture.course.user_id != current_user.id:
+        return {"error": "Access denied"}, 403
+    
+    enhancement_type = request.json.get("type")
+    section_text = request.json.get("text", lecture.summary)
+    
+    # Enhancement prompts
+    prompts = {
+        "explain": f"Provide a deeper, more detailed explanation of the following topic with examples and context:\n\n{section_text}",
+        "simplify": f"Explain the following in very simple terms (ELI5 - Explain Like I'm 5). Use simple language and analogies:\n\n{section_text}",
+        "keypoints": f"Extract and list the key points from the following text as a clear, organized bullet list:\n\n{section_text}"
+    }
+    
+    if enhancement_type not in prompts:
+        return {"error": "Invalid enhancement type"}, 400
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert educator helping students understand concepts better."
+                },
+                {"role": "user", "content": prompts[enhancement_type]}
+            ],
+            temperature=0.7,
+            max_tokens=1000
+        )
+        
+        enhanced_content = response.choices[0].message.content
+        return {"content": enhanced_content}
+    
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+
+@app.route("/concepts/<int:concept_id>/explain", methods=["POST"])
+@login_required
+def explain_concept(concept_id):
+    """Get detailed AI explanation for a specific concept"""
+    concept = Concept.query.get_or_404(concept_id)
+    lecture = Lecture.query.get(concept.lecture_id)
+    
+    # Check ownership
+    if lecture.course.user_id != current_user.id:
+        return {"error": "Access denied"}, 403
+    
+    # Create comprehensive explanation prompt
+    explanation_prompt = f"""Provide a comprehensive explanation of this concept:
+
+Concept: {concept.name}
+Definition: {concept.definition}
+Difficulty Level: {concept.difficulty}
+
+Please provide:
+1. A clear, detailed explanation
+2. 2-3 practical examples
+3. Common misconceptions (if any)
+4. How it connects to related topics
+
+Keep it educational and engaging."""
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert educator explaining concepts in depth."
+                },
+                {"role": "user", "content": explanation_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1500
+        )
+        
+        explanation = response.choices[0].message.content
+        return {"content": explanation}
+    
+    except Exception as e:
+        return {"error": str(e)}, 500
 
 
 # ==================== LEGACY ROUTES (V2.5 COMPATIBILITY) ====================
